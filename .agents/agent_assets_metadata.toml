@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "xWI438KDsaglxpCT4mfyT"
+uri = "file://FULL_CODE.txt"
+type = "text"
+title = "Sapthagiri NPS — Full Source Code"

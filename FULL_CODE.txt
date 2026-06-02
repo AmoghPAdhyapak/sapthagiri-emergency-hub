@@ -1,0 +1,1592 @@
+================================================================
+SAPTHAGIRI NPS UNIVERSITY — INSTITUTE OF MEDICAL SCIENCES
+AI-Assisted Emergency Portal — Full Source Code
+================================================================
+
+================================================================
+FILE: artifacts/api-server/src/index.ts
+================================================================
+import app from "./app";
+import { logger } from "./lib/logger";
+
+const rawPort = process.env["PORT"];
+
+if (!rawPort) {
+  throw new Error("PORT environment variable is required but was not provided.");
+}
+
+const port = Number(rawPort);
+
+if (Number.isNaN(port) || port <= 0) {
+  throw new Error(`Invalid PORT value: "${rawPort}"`);
+}
+
+app.listen(port, (err) => {
+  if (err) {
+    logger.error({ err }, "Error listening on port");
+    process.exit(1);
+  }
+  logger.info({ port }, "Server listening");
+});
+
+================================================================
+FILE: artifacts/api-server/src/app.ts
+================================================================
+import express, { type Express } from "express";
+import cors from "cors";
+import pinoHttp from "pino-http";
+import router from "./routes";
+import { logger } from "./lib/logger";
+
+const app: Express = express();
+
+app.use(
+  pinoHttp({
+    logger,
+    serializers: {
+      req(req) {
+        return { id: req.id, method: req.method, url: req.url?.split("?")[0] };
+      },
+      res(res) {
+        return { statusCode: res.statusCode };
+      },
+    },
+  }),
+);
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use("/api", router);
+
+export default app;
+
+================================================================
+FILE: artifacts/api-server/src/lib/logger.ts
+================================================================
+import pino from "pino";
+
+const isProduction = process.env.NODE_ENV === "production";
+
+export const logger = pino({
+  level: process.env.LOG_LEVEL ?? "info",
+  redact: [
+    "req.headers.authorization",
+    "req.headers.cookie",
+    "res.headers['set-cookie']",
+  ],
+  ...(isProduction
+    ? {}
+    : {
+        transport: {
+          target: "pino-pretty",
+          options: { colorize: true },
+        },
+      }),
+});
+
+================================================================
+FILE: artifacts/api-server/src/routes/index.ts
+================================================================
+import { Router, type IRouter } from "express";
+import healthRouter from "./health";
+import patientsRouter from "./patients";
+import geminiRouter from "./gemini";
+import otpRouter from "./otp";
+
+const router: IRouter = Router();
+
+router.use(healthRouter);
+router.use(patientsRouter);
+router.use("/gemini", geminiRouter);
+router.use(otpRouter);
+
+export default router;
+
+================================================================
+FILE: artifacts/api-server/src/routes/health.ts
+================================================================
+import { Router, type IRouter } from "express";
+import { HealthCheckResponse } from "@workspace/api-zod";
+
+const router: IRouter = Router();
+
+router.get("/healthz", (_req, res) => {
+  const data = HealthCheckResponse.parse({ status: "ok" });
+  res.json(data);
+});
+
+export default router;
+
+================================================================
+FILE: artifacts/api-server/src/routes/patients.ts
+================================================================
+import { Router } from "express";
+
+const router = Router();
+
+interface Patient {
+  id: number;
+  name: string;
+  room_no: string;
+  bed_no: string;
+  symptoms: string;
+  priority: "RED" | "YELLOW" | "GREEN";
+  status: "active" | "handled";
+  created_at: string;
+}
+
+let patients: Patient[] = [];
+let nextId = 1;
+
+function triage(symptoms: string = ""): "RED" | "YELLOW" | "GREEN" {
+  const s = symptoms.toLowerCase();
+  const RED = [
+    "chest pain","unconscious","not breathing","seizure","stroke",
+    "severe bleeding","cardiac","heart attack",
+  ];
+  const YELLOW = [
+    "shortness of breath","high fever","fracture","vomiting blood",
+    "deep cut","dehydration","head injury",
+  ];
+  if (RED.some((k) => s.includes(k))) return "RED";
+  if (YELLOW.some((k) => s.includes(k))) return "YELLOW";
+  return "GREEN";
+}
+
+const priorityOrder: Record<string, number> = { RED: 0, YELLOW: 1, GREEN: 2 };
+
+function sortedPatients(): Patient[] {
+  return [...patients].sort((a, b) => {
+    if (a.status === "handled" && b.status !== "handled") return 1;
+    if (b.status === "handled" && a.status !== "handled") return -1;
+    return (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3);
+  });
+}
+
+router.get("/patients/stats", (req, res) => {
+  res.json({
+    total: patients.length,
+    active: patients.filter((p) => p.status === "active").length,
+    handled: patients.filter((p) => p.status === "handled").length,
+    red: patients.filter((p) => p.priority === "RED").length,
+    yellow: patients.filter((p) => p.priority === "YELLOW").length,
+    green: patients.filter((p) => p.priority === "GREEN").length,
+  });
+});
+
+router.get("/patients", (_req, res) => {
+  res.json(sortedPatients());
+});
+
+router.post("/patients", (req, res) => {
+  const staff = (req.headers["x-staff-identity"] as string) || "System Gateway";
+  const { name, room_no, bed_no, symptoms } = req.body || {};
+  if (!name || !room_no || !symptoms) {
+    res.status(400).json({ error: "name, room_no, symptoms required" });
+    return;
+  }
+  const patient: Patient = {
+    id: nextId++,
+    name,
+    room_no,
+    bed_no: bed_no || "",
+    symptoms,
+    priority: triage(symptoms),
+    status: "active",
+    created_at: new Date().toISOString(),
+  };
+  patients.push(patient);
+  req.log.info(
+    `[AUDIT] 🏨 Staff Identity [${staff}] successfully ADMITTED patient: ${name} to Room ${room_no}.`
+  );
+  res.status(201).json(patient);
+});
+
+router.patch("/patients/:id", (req, res) => {
+  const staff = (req.headers["x-staff-identity"] as string) || "System Gateway";
+  const id = Number(req.params.id);
+  const p = patients.find((x) => x.id === id);
+  if (!p) { res.status(404).json({ error: "not found" }); return; }
+  Object.assign(p, req.body || {});
+  req.log.info(
+    `[AUDIT] ⚡ Staff Identity [${staff}] updated status for Patient ID #${id} to [${req.body?.status || "modified"}].`
+  );
+  res.json(p);
+});
+
+router.delete("/patients/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const exists = patients.some((x) => x.id === id);
+  if (!exists) { res.status(404).json({ error: "not found" }); return; }
+  patients = patients.filter((x) => x.id !== id);
+  res.json({ ok: true });
+});
+
+export default router;
+
+================================================================
+FILE: artifacts/api-server/src/routes/otp.ts
+================================================================
+import { Router } from "express";
+
+const router = Router();
+
+interface OtpRecord { otp: string; expiry: number; attempts: number; }
+const otpStore = new Map<string, OtpRecord>();
+
+const OTP_TTL_MS = 120_000;
+const MAX_ATTEMPTS = 5;
+
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+async function trySendSms(phone: string, otp: string): Promise<boolean> {
+  const apiKey = process.env.FAST2SMS_API_KEY;
+  if (!apiKey) {
+    console.log(`\n${"─".repeat(50)}\n[OTP-DEMO] +91${phone} → ${otp}\n${"─".repeat(50)}\n`);
+    return false;
+  }
+  const url = new URL("https://www.fast2sms.com/dev/bulkV2");
+  url.searchParams.set("authorization", apiKey);
+  url.searchParams.set(
+    "message",
+    `Your Sapthagiri NPS University OTP is: ${otp}. Valid for 2 minutes. Do not share.`
+  );
+  url.searchParams.set("language", "english");
+  url.searchParams.set("route", "q");
+  url.searchParams.set("numbers", phone);
+  try {
+    const res = await fetch(url.toString());
+    const data = (await res.json()) as { return: boolean; message?: string };
+    if (data.return) return true;
+    console.log(`[OTP-DEMO] SMS failed (${data.message}). Falling back to demo mode. +91${phone} → ${otp}`);
+  } catch {
+    console.log(`[OTP-DEMO] SMS fetch error. Falling back. +91${phone} → ${otp}`);
+  }
+  return false;
+}
+
+// POST /api/otp/send
+router.post("/otp/send", async (req, res) => {
+  const phone = String(req.body?.phone ?? "").replace(/\D/g, "");
+  if (phone.length < 7 || phone.length > 15) {
+    res.status(400).json({ error: "Enter a valid phone number." });
+    return;
+  }
+  const otp = generateOtp();
+  otpStore.set(phone, { otp, expiry: Date.now() + OTP_TTL_MS, attempts: 0 });
+  const smsSent = await trySendSms(phone, otp);
+  if (smsSent) {
+    res.json({ success: true, sms: true });
+  } else {
+    res.json({ success: true, sms: false, demo_otp: otp });
+  }
+});
+
+// POST /api/otp/verify
+router.post("/otp/verify", (req, res) => {
+  const phone = String(req.body?.phone ?? "").replace(/\D/g, "");
+  const otp   = String(req.body?.otp   ?? "").trim();
+
+  const record = otpStore.get(phone);
+  if (!record) {
+    res.status(400).json({ error: "No OTP found for this number. Request a new one." });
+    return;
+  }
+  if (Date.now() > record.expiry) {
+    otpStore.delete(phone);
+    res.status(400).json({ error: "OTP has expired. Please request a new one." });
+    return;
+  }
+  record.attempts += 1;
+  if (record.attempts > MAX_ATTEMPTS) {
+    otpStore.delete(phone);
+    res.status(400).json({ error: "Too many failed attempts. Please request a new OTP." });
+    return;
+  }
+  if (otp !== record.otp) {
+    res.status(400).json({
+      error: `Incorrect OTP. ${MAX_ATTEMPTS - record.attempts} attempt(s) remaining.`,
+    });
+    return;
+  }
+  otpStore.delete(phone);
+  res.json({ success: true });
+});
+
+export default router;
+
+================================================================
+FILE: artifacts/api-server/src/routes/gemini/conversations.ts
+================================================================
+import { Router } from "express";
+import { db } from "@workspace/db";
+import { conversations as conversationsTable, messages as messagesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { ai } from "@workspace/integrations-gemini-ai";
+
+const router = Router();
+
+const SYSTEM_INSTRUCTION =
+  "You are a helpful, reassuring assistant for an emergency room triage dashboard. " +
+  "Provide concise, clear guidance to support emergency room staff and patients. " +
+  "You are NOT a doctor and cannot give diagnoses or prescriptions. " +
+  "If symptoms sound severe or life-threatening, always advise the user to notify medical staff immediately. " +
+  "Keep responses brief and actionable — staff are busy.";
+
+// GET /api/gemini/conversations
+router.get("/", async (req, res) => {
+  try {
+    const conversations = await db
+      .select()
+      .from(conversationsTable)
+      .orderBy(conversationsTable.createdAt);
+    res.json(conversations);
+  } catch (err) {
+    req.log.error(err, "Failed to list conversations");
+    res.status(500).json({ error: "Failed to list conversations" });
+  }
+});
+
+// POST /api/gemini/conversations
+router.post("/", async (req, res) => {
+  try {
+    const { title } = req.body || {};
+    if (!title) { res.status(400).json({ error: "title is required" }); return; }
+    const [conversation] = await db
+      .insert(conversationsTable)
+      .values({ title })
+      .returning();
+    res.status(201).json(conversation);
+  } catch (err) {
+    req.log.error(err, "Failed to create conversation");
+    res.status(500).json({ error: "Failed to create conversation" });
+  }
+});
+
+// GET /api/gemini/conversations/:id
+router.get("/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [conversation] = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.id, id));
+    if (!conversation) { res.status(404).json({ error: "Conversation not found" }); return; }
+    const messages = await db
+      .select()
+      .from(messagesTable)
+      .where(eq(messagesTable.conversationId, id))
+      .orderBy(messagesTable.createdAt);
+    res.json({ ...conversation, messages });
+  } catch (err) {
+    req.log.error(err, "Failed to get conversation");
+    res.status(500).json({ error: "Failed to get conversation" });
+  }
+});
+
+// DELETE /api/gemini/conversations/:id
+router.delete("/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [existing] = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Conversation not found" }); return; }
+    await db.delete(messagesTable).where(eq(messagesTable.conversationId, id));
+    await db.delete(conversationsTable).where(eq(conversationsTable.id, id));
+    res.status(204).send();
+  } catch (err) {
+    req.log.error(err, "Failed to delete conversation");
+    res.status(500).json({ error: "Failed to delete conversation" });
+  }
+});
+
+// POST /api/gemini/conversations/:id/messages — SSE streaming
+router.post("/:id/messages", async (req, res) => {
+  const id = Number(req.params.id);
+  const staff = (req.headers["x-staff-identity"] as string) || "System Gateway";
+  try {
+    const { content } = req.body || {};
+    if (!content) { res.status(400).json({ error: "content is required" }); return; }
+    req.log.info(
+      `[AUDIT] 🤖 Staff Identity [${staff}] requested Gemini diagnostic support for message: "${content.substring(0, 30)}..."`
+    );
+
+    const [conversation] = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.id, id));
+    if (!conversation) { res.status(404).json({ error: "Conversation not found" }); return; }
+
+    await db.insert(messagesTable).values({ conversationId: id, role: "user", content });
+
+    const history = await db
+      .select()
+      .from(messagesTable)
+      .where(eq(messagesTable.conversationId, id))
+      .orderBy(messagesTable.createdAt);
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const chatMessages = [
+      { role: "user" as const, parts: [{ text: SYSTEM_INSTRUCTION }] },
+      ...history.map((m) => ({
+        role: (m.role === "assistant" ? "model" : "user") as "user" | "model",
+        parts: [{ text: m.content }],
+      })),
+    ];
+
+    let fullResponse = "";
+
+    const stream = await ai.models.generateContentStream({
+      model: "gemini-2.5-flash",
+      contents: chatMessages,
+      config: { maxOutputTokens: 8192 },
+    });
+
+    for await (const chunk of stream) {
+      const text = chunk.text;
+      if (text) {
+        fullResponse += text;
+        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+      }
+    }
+
+    await db.insert(messagesTable).values({
+      conversationId: id,
+      role: "assistant",
+      content: fullResponse,
+    });
+
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err) {
+    req.log.error(err, "AI chat stream failed");
+    res.write(
+      `data: ${JSON.stringify({ error: "AI assistant is currently unavailable. Please speak to onsite medical staff." })}\n\n`
+    );
+    res.end();
+  }
+});
+
+export default router;
+
+================================================================
+FILE: artifacts/dashboard/src/data/doctors.json
+================================================================
+[
+  { "name": "Dr. Amogh P Adhyapak", "doctor_id": "DOC001" },
+  { "name": "Dr. Sarah Mitchell",    "doctor_id": "DOC101" },
+  { "name": "Dr. Raj Patel",         "doctor_id": "DOC102" },
+  { "name": "Dr. Priya Sharma",      "doctor_id": "DOC103" },
+  { "name": "Dr. James Fernandez",   "doctor_id": "DOC104" }
+]
+
+================================================================
+FILE: artifacts/dashboard/src/App.tsx
+================================================================
+import { useEffect, useState, ReactNode } from "react";
+import { SplashScreen } from "@/components/SplashScreen";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import NotFound from "@/pages/not-found";
+import Dashboard from "@/pages/Dashboard";
+import LandingPage from "@/pages/LandingPage";
+import LoginPage from "@/pages/LoginPage";
+import SignUpPage from "@/pages/SignUpPage";
+
+const queryClient = new QueryClient();
+
+function AuthGuard({ children }: { children: ReactNode }) {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    const user = localStorage.getItem("sapthagiri_user");
+    if (!user) setLocation("/login");
+  }, [setLocation]);
+  return <>{children}</>;
+}
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={LandingPage} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/signup" component={SignUpPage} />
+      <Route path="/dashboard">
+        <AuthGuard><Dashboard /></AuthGuard>
+      </Route>
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  const [splashDone, setSplashDone] = useState(false);
+  useEffect(() => { document.documentElement.classList.add("dark"); }, []);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <Router />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
+
+================================================================
+FILE: artifacts/dashboard/src/components/SplashScreen.tsx
+================================================================
+import { useEffect, useState } from "react";
+import splashLogo from "@assets/ChatGPT_image_logo_Image_Jun_2,_2026,_02_27_22_PM_1780393955376.png";
+
+interface SplashScreenProps { onDone: () => void; }
+
+export function SplashScreen({ onDone }: SplashScreenProps) {
+  const [phase, setPhase] = useState<"enter" | "hold" | "exit">("enter");
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase("hold"), 100);
+    const t2 = setTimeout(() => setPhase("exit"), 2800);
+    const t3 = setTimeout(() => onDone(), 3500);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [onDone]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#020817]"
+      style={{
+        opacity: phase === "exit" ? 0 : 1,
+        transition: phase === "exit" ? "opacity 0.7s ease-in-out" : "none",
+      }}
+    >
+      {/* Ambient glow layers */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full"
+          style={{
+            background: "radial-gradient(circle, rgba(0,150,255,0.08) 0%, transparent 70%)",
+            animation: "pulse 3s ease-in-out infinite",
+          }}
+        />
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full"
+          style={{
+            background: "radial-gradient(circle, rgba(0,200,255,0.06) 0%, transparent 70%)",
+            animation: "pulse 2s ease-in-out infinite 0.5s",
+          }}
+        />
+      </div>
+
+      <div
+        className="relative flex flex-col items-center gap-6"
+        style={{
+          opacity: phase === "enter" ? 0 : 1,
+          transform: phase === "enter" ? "scale(0.88) translateY(12px)" : "scale(1) translateY(0)",
+          transition: "opacity 0.8s ease-out, transform 0.8s cubic-bezier(0.34,1.2,0.64,1)",
+        }}
+      >
+        <div className="relative">
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{ boxShadow: "0 0 60px 20px rgba(0,180,255,0.18), 0 0 120px 40px rgba(0,100,255,0.1)" }}
+          />
+          <img
+            src={splashLogo}
+            alt="Sapthagiri NPS University"
+            className="relative w-44 h-44 object-contain drop-shadow-2xl"
+            style={{ filter: "drop-shadow(0 0 24px rgba(0,180,255,0.4))" }}
+          />
+        </div>
+
+        <div
+          className="text-center"
+          style={{
+            opacity: phase === "enter" ? 0 : 1,
+            transform: phase === "enter" ? "translateY(8px)" : "translateY(0)",
+            transition: "opacity 0.7s ease-out 0.35s, transform 0.7s ease-out 0.35s",
+          }}
+        >
+          <h1 className="text-3xl font-black text-white uppercase tracking-[0.18em] mb-1">
+            Sapthagiri <span className="text-cyan-400">NPS</span>
+          </h1>
+          <p className="text-sm font-bold text-slate-400 uppercase tracking-[0.25em] mb-0.5">
+            Institute of Medical Sciences & Research Center
+          </p>
+          <p className="text-xs font-mono text-cyan-500/70 uppercase tracking-widest">
+            AI-Assisted Healthcare Platform
+          </p>
+        </div>
+
+        <div
+          className="w-56 h-0.5 bg-slate-800 rounded-full overflow-hidden"
+          style={{ opacity: phase === "enter" ? 0 : 1, transition: "opacity 0.5s ease-out 0.6s" }}
+        >
+          <div
+            className="h-full bg-gradient-to-r from-cyan-500 via-blue-400 to-cyan-500 rounded-full"
+            style={{
+              width: phase === "hold" || phase === "exit" ? "100%" : "0%",
+              transition: "width 2.2s cubic-bezier(0.4,0,0.2,1) 0.7s",
+              boxShadow: "0 0 8px rgba(0,210,255,0.8)",
+            }}
+          />
+        </div>
+
+        <p
+          className="text-[10px] font-mono text-slate-600 uppercase tracking-[0.3em]"
+          style={{ opacity: phase === "enter" ? 0 : 1, transition: "opacity 0.5s ease-out 0.8s" }}
+        >
+          Initializing Emergency Systems…
+        </p>
+      </div>
+
+      <div
+        className="absolute bottom-8 text-center"
+        style={{ opacity: phase === "enter" ? 0 : 0.4, transition: "opacity 0.6s ease-out 1s" }}
+      >
+        <p className="text-[10px] font-mono text-slate-600 uppercase tracking-widest">
+          Sapthagiri Medical Care Portal · v2025
+        </p>
+      </div>
+    </div>
+  );
+}
+
+================================================================
+FILE: artifacts/dashboard/src/components/StatsBar.tsx
+================================================================
+import React from "react";
+import { useGetPatientStats, getGetPatientStatsQueryKey } from "@workspace/api-client-react";
+import { Activity, Users, AlertTriangle, CheckCircle, ShieldAlert } from "lucide-react";
+
+export function StatsBar() {
+  const { data: stats } = useGetPatientStats({
+    query: { refetchInterval: 5000, queryKey: getGetPatientStatsQueryKey() }
+  });
+
+  if (!stats) return null;
+
+  return (
+    <div className="grid grid-cols-6 gap-4" data-testid="stats-bar">
+      <StatCard label="Total Admitted"   value={stats.total}   icon={<Users className="w-5 h-5 text-blue-400" />}               borderColor="border-blue-500/50"    valueColor="text-blue-100" />
+      <StatCard label="Active Cases"     value={stats.active}  icon={<Activity className="w-5 h-5 text-indigo-400" />}           borderColor="border-indigo-500/50"  valueColor="text-indigo-100" />
+      <StatCard label="Handled"          value={stats.handled} icon={<CheckCircle className="w-5 h-5 text-slate-400" />}         borderColor="border-slate-500/50"   valueColor="text-slate-300" />
+      <StatCard label="Critical (RED)"   value={stats.red}     icon={<ShieldAlert className={`w-5 h-5 text-red-500 ${stats.red > 0 ? "animate-pulse" : ""}`} />} borderColor="border-red-500"       valueColor="text-red-400" pulse={stats.red > 0} />
+      <StatCard label="Caution (YELLOW)" value={stats.yellow}  icon={<AlertTriangle className="w-5 h-5 text-yellow-500" />}      borderColor="border-yellow-500/70"  valueColor="text-yellow-400" />
+      <StatCard label="Stable (GREEN)"   value={stats.green}   icon={<Activity className="w-5 h-5 text-emerald-500" />}          borderColor="border-emerald-500/50" valueColor="text-emerald-400" />
+    </div>
+  );
+}
+
+function StatCard({ label, value, icon, borderColor, valueColor, pulse }: any) {
+  return (
+    <div className={`bg-card rounded-md border-t-2 ${borderColor} p-4 flex flex-col justify-center relative overflow-hidden`}>
+      {pulse && <div className="absolute inset-0 bg-red-500/10 animate-pulse pointer-events-none" />}
+      <div className="flex justify-between items-start mb-2">
+        <span className="text-xs uppercase tracking-wider text-muted-foreground font-bold">{label}</span>
+        {icon}
+      </div>
+      <div className={`text-3xl font-mono font-black ${valueColor}`} data-testid={`stat-${label.split(' ')[0].toLowerCase()}`}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+================================================================
+FILE: artifacts/dashboard/src/components/DoctorVerificationModal.tsx
+================================================================
+import { useState } from "react";
+import { ShieldCheck, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import defaultDoctors from "@/data/doctors.json";
+
+interface Doctor { name: string; doctor_id: string; }
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  onVerified: () => void;
+  action?: string;
+}
+
+function getDoctors(): Doctor[] {
+  try {
+    const stored = localStorage.getItem("sapthagiri_doctors");
+    if (stored) return JSON.parse(stored) as Doctor[];
+  } catch { /* fall through */ }
+  return defaultDoctors as Doctor[];
+}
+
+export function DoctorVerificationModal({
+  open, onClose, onVerified, action = "perform this action",
+}: Props) {
+  const [doctorId, setDoctorId] = useState("");
+  const [error, setError] = useState("");
+
+  const handleClose = () => { setDoctorId(""); setError(""); onClose(); };
+
+  const handleVerify = () => {
+    const doctors = getDoctors();
+    const match = doctors.find(
+      (d) => d.doctor_id.toUpperCase() === doctorId.trim().toUpperCase()
+    );
+    if (match) {
+      setDoctorId(""); setError("");
+      onVerified(); onClose();
+    } else {
+      setError("Invalid Doctor ID. Access denied.");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="bg-primary/20 p-2 rounded-lg shrink-0">
+              <ShieldCheck className="w-5 h-5 text-primary" />
+            </div>
+            <DialogTitle>Doctor Verification Required</DialogTitle>
+          </div>
+          <DialogDescription>
+            A valid Doctor ID is required to {action}. Only authorized medical staff can approve this action.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="doc-id-input">Doctor ID</Label>
+            <Input
+              id="doc-id-input"
+              placeholder="e.g. DOC101"
+              value={doctorId}
+              onChange={(e) => { setDoctorId(e.target.value); setError(""); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleVerify(); }}
+              className="font-mono uppercase tracking-widest"
+              data-testid="input-doctor-id"
+              autoFocus
+            />
+          </div>
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md p-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {error}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose} data-testid="button-cancel-verify">Cancel</Button>
+          <Button onClick={handleVerify} data-testid="button-verify-doctor">
+            <ShieldCheck className="w-4 h-4 mr-2" />
+            Verify & Proceed
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+================================================================
+FILE: artifacts/dashboard/src/components/EmergencySos.tsx
+================================================================
+import { useState, useEffect, useRef } from "react";
+import { AlertOctagon, MapPin, CheckCircle2, X, Loader2, Radio, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+type SosStage = "idle" | "confirm" | "locating" | "dispatching" | "active";
+
+interface LocationData { lat: number; lng: number; accuracy: number; }
+
+const DISPATCH_STEPS = [
+  { label: "Emergency call received",                delay: 0 },
+  { label: "Locating nearest ambulance unit",        delay: 1600 },
+  { label: "Dispatching unit to your coordinates",   delay: 3200 },
+  { label: "Unit en route — ETA 8–12 minutes",       delay: 4800 },
+];
+
+const AI_MESSAGES = [
+  "Emergency response has been activated. Stay calm and remain in a safe position.",
+  "If the patient is unconscious, check for breathing and place in the recovery position.",
+  "Do not move the patient if spinal injury is suspected.",
+  "Keep the patient warm. Monitor breathing and pulse continuously until help arrives.",
+  "Clear the building entrance and elevator for emergency access. Ambulance is en route.",
+];
+
+const ETA_START = 11 * 60;
+
+export function EmergencySos() {
+  const [stage, setStage] = useState<SosStage>("idle");
+  const [location, setLocation] = useState<LocationData | null>(null);
+  const [locationError, setLocationError] = useState("");
+  const [dispatchStep, setDispatchStep] = useState(-1);
+  const [aiMessages, setAiMessages] = useState<string[]>([]);
+  const [etaSeconds, setEtaSeconds] = useState(ETA_START);
+  const etaRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const aiRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const msgIndexRef = useRef(0);
+
+  const handleActivate = () => setStage("confirm");
+  const handleCancel = () => {
+    setStage("idle"); setLocation(null); setLocationError("");
+    setDispatchStep(-1); setAiMessages([]); setEtaSeconds(ETA_START);
+    msgIndexRef.current = 0;
+    if (etaRef.current) clearInterval(etaRef.current);
+    if (aiRef.current)  clearInterval(aiRef.current);
+  };
+
+  const handleConfirm = () => {
+    setStage("locating");
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation not supported. Proceeding with dispatch.");
+      runDispatch(null); return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+        setLocation(loc); runDispatch(loc);
+      },
+      () => { setLocationError("Location unavailable. Proceeding with dispatch."); runDispatch(null); },
+      { timeout: 8000, maximumAge: 0, enableHighAccuracy: true }
+    );
+  };
+
+  const runDispatch = (loc: LocationData | null) => {
+    if (loc) setLocation(loc);
+    setStage("dispatching"); setDispatchStep(0);
+    DISPATCH_STEPS.forEach((step, i) => {
+      if (i === 0) return;
+      setTimeout(() => setDispatchStep(i), step.delay);
+    });
+    setTimeout(() => { setStage("active"); startEta(); startAiMessages(); }, 6000);
+  };
+
+  const startEta = () => {
+    setEtaSeconds(ETA_START);
+    if (etaRef.current) clearInterval(etaRef.current);
+    etaRef.current = setInterval(() => {
+      setEtaSeconds((prev) => {
+        if (prev <= 0) { clearInterval(etaRef.current!); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const startAiMessages = () => {
+    msgIndexRef.current = 0;
+    setAiMessages([AI_MESSAGES[0]]);
+    msgIndexRef.current = 1;
+    if (aiRef.current) clearInterval(aiRef.current);
+    aiRef.current = setInterval(() => {
+      if (msgIndexRef.current >= AI_MESSAGES.length) { clearInterval(aiRef.current!); return; }
+      setAiMessages((prev) => [...prev, AI_MESSAGES[msgIndexRef.current]]);
+      msgIndexRef.current += 1;
+    }, 3500);
+  };
+
+  useEffect(() => () => {
+    if (etaRef.current) clearInterval(etaRef.current);
+    if (aiRef.current)  clearInterval(aiRef.current);
+  }, []);
+
+  const etaMin = Math.floor(etaSeconds / 60);
+  const etaSec = String(etaSeconds % 60).padStart(2, "0");
+
+  return (
+    <>
+      {stage === "idle" && (
+        <button
+          onClick={handleActivate}
+          data-testid="button-emergency-sos"
+          className="fixed bottom-6 right-6 z-40 group"
+          aria-label="Activate Emergency SOS"
+        >
+          <span className="absolute inset-0 rounded-full bg-red-500 opacity-30 animate-ping" />
+          <span className="absolute inset-[-6px] rounded-full bg-red-500 opacity-15 animate-ping [animation-delay:0.4s]" />
+          <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-red-600 shadow-[0_0_28px_8px_rgba(239,68,68,0.5)] transition-transform group-hover:scale-110">
+            <AlertOctagon className="w-7 h-7 text-white" strokeWidth={2.5} />
+          </span>
+          <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-black uppercase tracking-widest text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+            Emergency SOS
+          </span>
+        </button>
+      )}
+
+      {stage === "confirm" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="relative w-full max-w-sm mx-4 rounded-2xl border border-red-500/50 bg-[#0d0d0d] p-8 shadow-[0_0_60px_rgba(239,68,68,0.4)] text-center">
+            <div className="mx-auto mb-5 relative w-20 h-20">
+              <span className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-red-600/20 border-2 border-red-500/60">
+                <AlertOctagon className="w-9 h-9 text-red-400" />
+              </div>
+            </div>
+            <h2 className="text-2xl font-black text-red-400 uppercase tracking-wider mb-2">Emergency SOS</h2>
+            <p className="text-sm text-muted-foreground mb-1">Activate Emergency Response?</p>
+            <p className="text-xs text-muted-foreground/60 mb-7">
+              This will share your live location and trigger ambulance dispatch.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1 border-border text-muted-foreground" onClick={handleCancel}>Cancel</Button>
+              <Button className="flex-1 bg-red-600 hover:bg-red-500 text-white font-black uppercase tracking-wider" onClick={handleConfirm} data-testid="button-confirm-sos">
+                <AlertOctagon className="w-4 h-4 mr-2" /> Activate
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(stage === "locating" || stage === "dispatching") && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
+          <div className="w-full max-w-md mx-4 text-center">
+            {stage === "locating" && (
+              <>
+                <Loader2 className="w-12 h-12 text-red-400 animate-spin mx-auto mb-4" />
+                <p className="text-lg font-bold text-red-400 uppercase tracking-wider">Retrieving Location…</p>
+                <p className="text-xs text-muted-foreground mt-2">Please allow location access when prompted</p>
+              </>
+            )}
+            {stage === "dispatching" && (
+              <div className="rounded-2xl border border-red-500/40 bg-[#0d0d0d] p-8 shadow-[0_0_60px_rgba(239,68,68,0.3)]">
+                <div className="flex justify-center mb-6">
+                  <div className="relative">
+                    <span className="absolute inset-0 rounded-full bg-red-500/30 animate-ping" />
+                    <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-red-600/20 border border-red-500/50">
+                      <Radio className="w-7 h-7 text-red-400 animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+                <h3 className="text-xl font-black text-red-400 uppercase tracking-wider mb-6">Activating Emergency Response</h3>
+                <div className="space-y-3 text-left">
+                  {DISPATCH_STEPS.map((step, i) => (
+                    <div key={step.label} className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-500 ${i <= dispatchStep ? "bg-red-500/10 border-red-500/30 text-foreground" : "bg-muted/10 border-border/30 text-muted-foreground/30"}`}>
+                      {i < dispatchStep ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : i === dispatchStep ? <Loader2 className="w-4 h-4 text-red-400 animate-spin shrink-0" /> : <div className="w-4 h-4 rounded-full border border-border/30 shrink-0" />}
+                      <span className="text-sm font-medium">{step.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {stage === "active" && (
+        <div className="fixed inset-0 z-50 bg-[#0a0000]/95 backdrop-blur-sm overflow-y-auto">
+          <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-red-600 shadow-[0_0_30px_rgba(239,68,68,0.6)]">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-white animate-pulse" />
+              <span className="font-black text-white uppercase tracking-widest text-sm">Emergency Response Active</span>
+              <span className="flex h-2 w-2 rounded-full bg-white animate-ping" />
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-white font-mono text-sm font-bold">
+                🚑 ETA: {etaSeconds > 0 ? `${etaMin}:${etaSec}` : "Arriving"}
+              </div>
+              <button onClick={handleCancel} className="text-white/80 hover:text-white transition-colors" data-testid="button-cancel-sos">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          <div className="max-w-3xl mx-auto p-6 space-y-5">
+            <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-5">
+              <h3 className="text-xs font-black uppercase tracking-widest text-red-400 mb-3 flex items-center gap-2">
+                <Radio className="w-3.5 h-3.5 animate-pulse" /> Dispatch Status
+              </h3>
+              <div className="space-y-2">
+                {DISPATCH_STEPS.map((step) => (
+                  <div key={step.label} className="flex items-center gap-3 text-sm">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="text-foreground">{step.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-5">
+              <h3 className="text-xs font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+                <MapPin className="w-3.5 h-3.5" /> Location Shared Successfully
+              </h3>
+              {location ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-background/50 rounded-lg p-3 font-mono">
+                      <p className="text-[10px] text-muted-foreground uppercase mb-1">Latitude</p>
+                      <p className="text-sm font-bold text-primary">{location.lat.toFixed(6)}°</p>
+                    </div>
+                    <div className="bg-background/50 rounded-lg p-3 font-mono">
+                      <p className="text-[10px] text-muted-foreground uppercase mb-1">Longitude</p>
+                      <p className="text-sm font-bold text-primary">{location.lng.toFixed(6)}°</p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Accuracy: ±{Math.round(location.accuracy)}m — coordinates shared with emergency dispatch</p>
+                  <iframe
+                    title="Emergency Location"
+                    className="w-full h-44 rounded-lg border border-border/40 mt-2"
+                    loading="lazy"
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${location.lng - 0.005},${location.lat - 0.005},${location.lng + 0.005},${location.lat + 0.005}&layer=mapnik&marker=${location.lat},${location.lng}`}
+                  />
+                </div>
+              ) : (
+                <p className="text-sm text-amber-400">{locationError || "Location coordinates shared with dispatch team."}</p>
+              )}
+            </div>
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
+              <h3 className="text-xs font-black uppercase tracking-widest text-amber-400 mb-3 flex items-center gap-2">
+                <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                AI Emergency Assistant — Guidance
+              </h3>
+              <div className="space-y-2.5">
+                {aiMessages.map((msg, i) => (
+                  <div key={i} className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <div className="mt-1 shrink-0 w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center">
+                      <span className="text-[10px] text-amber-400 font-bold">{i + 1}</span>
+                    </div>
+                    <p className="text-sm text-foreground/90 leading-relaxed">{msg}</p>
+                  </div>
+                ))}
+                {aiMessages.length < AI_MESSAGES.length && (
+                  <div className="flex items-center gap-2 text-amber-400/50">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span className="text-xs">AI analyzing situation…</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground/40 mt-3 border-t border-border/20 pt-2">
+                This is AI-assisted emergency support guidance. Always follow instructions from trained medical personnel.
+              </p>
+            </div>
+            <Button variant="outline" className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={handleCancel}>
+              <X className="w-4 h-4 mr-2" /> Cancel Emergency Response
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+================================================================
+FILE: artifacts/dashboard/src/components/AiChatPanel.tsx
+================================================================
+import { useState, useEffect, useRef, type MouseEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useListGeminiConversations,
+  useCreateGeminiConversation,
+  useGetGeminiConversation,
+  useDeleteGeminiConversation,
+  getListGeminiConversationsQueryKey,
+  getGetGeminiConversationQueryKey,
+} from "@workspace/api-client-react";
+import { MessageSquare, X, Plus, Send, Loader2, Bot, User, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+interface AiChatPanelProps { isOpen: boolean; onClose: () => void; }
+
+export function AiChatPanel({ isOpen, onClose }: AiChatPanelProps) {
+  const queryClient = useQueryClient();
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [inputValue, setInputValue] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
+  const [localMessages, setLocalMessages] = useState<Array<{role: string, content: string}>>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { data: conversations, isLoading: isLoadingConversations } = useListGeminiConversations();
+  const createConversation = useCreateGeminiConversation();
+  const deleteConversation = useDeleteGeminiConversation();
+
+  const { data: activeConversation, isLoading: isLoadingMessages } = useGetGeminiConversation(
+    activeConversationId as number,
+    { query: { enabled: !!activeConversationId, queryKey: getGetGeminiConversationQueryKey(activeConversationId as number) } }
+  );
+
+  useEffect(() => {
+    if (activeConversation) {
+      setLocalMessages(activeConversation.messages.map(m => ({ role: m.role, content: m.content })));
+    } else {
+      setLocalMessages([]);
+    }
+  }, [activeConversation]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [localMessages, streamingContent]);
+
+  const handleNewChat = () => { setActiveConversationId(null); setLocalMessages([]); setStreamingContent(""); };
+
+  const handleDelete = (id: number, e: MouseEvent) => {
+    e.stopPropagation();
+    deleteConversation.mutate({ id }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListGeminiConversationsQueryKey() });
+        if (activeConversationId === id) handleNewChat();
+      }
+    });
+  };
+
+  const handleSend = async () => {
+    if (!inputValue.trim() || isStreaming) return;
+    const messageToSend = inputValue;
+    setInputValue("");
+    setLocalMessages(prev => [...prev, { role: "user", content: messageToSend }]);
+    setIsStreaming(true);
+    setStreamingContent("");
+
+    let currentConversationId = activeConversationId;
+    if (!currentConversationId) {
+      try {
+        const title = messageToSend.slice(0, 40) + (messageToSend.length > 40 ? "..." : "");
+        const newConv = await createConversation.mutateAsync({ data: { title } });
+        currentConversationId = newConv.id;
+        setActiveConversationId(newConv.id);
+        queryClient.invalidateQueries({ queryKey: getListGeminiConversationsQueryKey() });
+      } catch { setIsStreaming(false); return; }
+    }
+
+    try {
+      const response = await fetch(`/api/gemini/conversations/${currentConversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: messageToSend }),
+      });
+      if (!response.ok) throw new Error("Failed to send message");
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const json = JSON.parse(line.slice(6));
+            if (json.content) setStreamingContent(prev => prev + json.content);
+            if (json.done) queryClient.invalidateQueries({ queryKey: getGetGeminiConversationQueryKey(currentConversationId as number) });
+          }
+        }
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsStreaming(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-[380px] bg-[#0f1219] border-l border-border shadow-2xl flex flex-col z-50 transform transition-transform duration-300 ease-in-out" data-testid="ai-chat-panel">
+      <div className="p-4 border-b border-border/50 bg-[#161b22] flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="bg-primary/20 p-1.5 rounded-md">
+            <Bot className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-wider text-primary">AI Health Assistant</h3>
+            <div className="flex items-center gap-1.5">
+              <span className={cn("w-1.5 h-1.5 rounded-full", isStreaming ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground")} />
+              <span className="text-[10px] uppercase font-mono text-muted-foreground">
+                {isStreaming ? "Live Output" : "Standby"}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={handleNewChat} data-testid="button-new-chat">
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={onClose} data-testid="button-close-chat">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden">
+        {!activeConversationId && !localMessages.length && (
+          <div className="w-full h-full flex flex-col bg-background/50">
+            <div className="p-3 border-b border-border/50">
+              <span className="text-xs font-mono text-muted-foreground uppercase">Recent Consults</span>
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="p-2 space-y-1">
+                {isLoadingConversations ? (
+                  <div className="p-4 text-center text-muted-foreground text-sm flex justify-center"><Loader2 className="w-4 h-4 animate-spin" /></div>
+                ) : conversations?.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground text-xs font-mono">No recent consults</div>
+                ) : (
+                  conversations?.map((conv) => (
+                    <div key={conv.id} className="group flex items-center justify-between p-3 rounded-md hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => setActiveConversationId(conv.id)} data-testid={`item-conversation-${conv.id}`}>
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm truncate text-foreground/90">{conv.title}</span>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-opacity shrink-0" onClick={(e) => handleDelete(conv.id, e)} data-testid={`button-delete-conversation-${conv.id}`}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+
+        {(activeConversationId || localMessages.length > 0) && (
+          <div className="w-full flex flex-col h-full bg-[#0a0c10]">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+              {isLoadingMessages && activeConversationId && !localMessages.length ? (
+                <div className="h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+              ) : (
+                <>
+                  <div className="text-center pb-4">
+                    <span className="text-[10px] uppercase font-mono text-muted-foreground border border-border/50 rounded px-2 py-1 bg-muted/20">End-to-end Encrypted Session</span>
+                  </div>
+                  {localMessages.map((msg, i) => (
+                    <div key={i} className={cn("flex flex-col max-w-[85%]", msg.role === "user" ? "ml-auto" : "mr-auto")}>
+                      <div className={cn("p-3 rounded-lg text-sm", msg.role === "user" ? "bg-slate-800 text-slate-100 rounded-tr-sm" : "bg-primary/20 text-primary-foreground border border-primary/20 rounded-tl-sm")}>
+                        {msg.content}
+                      </div>
+                      <span className={cn("text-[10px] text-muted-foreground font-mono mt-1", msg.role === "user" ? "text-right" : "text-left")}>
+                        {msg.role === "user" ? "Staff" : "System AI"}
+                      </span>
+                    </div>
+                  ))}
+                  {isStreaming && (
+                    <div className="flex flex-col max-w-[85%] mr-auto">
+                      <div className="p-3 rounded-lg text-sm bg-primary/20 text-primary-foreground border border-primary/20 rounded-tl-sm">
+                        {streamingContent}
+                        <span className="inline-block w-1.5 h-3 ml-1 bg-primary animate-pulse align-middle" />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground font-mono mt-1 text-left">System AI</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="p-4 bg-[#161b22] border-t border-border/50 shrink-0">
+              <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-end gap-2">
+                <div className="relative flex-1">
+                  <Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Query triage protocols or symptoms..." className="pr-10 bg-[#0a0c10] border-border text-sm focus-visible:ring-primary/50" disabled={isStreaming} data-testid="input-chat-message" />
+                </div>
+                <Button type="submit" size="icon" disabled={!inputValue.trim() || isStreaming} className="shrink-0 h-10 w-10 bg-primary hover:bg-primary/90 text-primary-foreground" data-testid="button-send-message">
+                  <Send className="w-4 h-4" />
+                </Button>
+              </form>
+              <div className="mt-2 text-center">
+                <span className="text-[10px] uppercase font-mono text-muted-foreground/60">Not a medical diagnosis tool</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+================================================================
+FILE: artifacts/dashboard/src/components/MedicalNotesPanel.tsx
+================================================================
+import { useState } from "react";
+import {
+  FileText, ShieldCheck, ShieldX, Plus, Clock, Building2, AlertTriangle, CheckCircle2, Trash2,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import defaultDoctors from "@/data/doctors.json";
+
+interface Doctor { name: string; doctor_id: string; }
+interface MedNote {
+  id: string; doctorName: string; doctorId: string; hospital: string;
+  patientName: string; comments: string; timestamp: string; verified: boolean;
+}
+interface DeanAlert {
+  id: string; doctorName: string; doctorId: string; hospital: string;
+  patientName: string; commentPreview: string; timestamp: string;
+}
+
+function pushDeanAlert(alert: DeanAlert) {
+  try {
+    const existing: DeanAlert[] = JSON.parse(localStorage.getItem("sapthagiri_dean_alerts") || "[]");
+    localStorage.setItem("sapthagiri_dean_alerts", JSON.stringify([alert, ...existing]));
+  } catch { /* ignore */ }
+}
+
+function getDoctors(): Doctor[] {
+  try {
+    const s = localStorage.getItem("sapthagiri_doctors");
+    if (s) return JSON.parse(s) as Doctor[];
+  } catch { /* ignore */ }
+  return defaultDoctors as Doctor[];
+}
+
+function getNotes(): MedNote[] {
+  try {
+    const s = localStorage.getItem("sapthagiri_medical_notes");
+    if (s) return JSON.parse(s) as MedNote[];
+  } catch { /* ignore */ }
+  return [];
+}
+
+function saveNotes(notes: MedNote[]) {
+  localStorage.setItem("sapthagiri_medical_notes", JSON.stringify(notes));
+}
+
+const SH = "flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-0";
+
+export function MedicalNotesPanel() {
+  const { toast } = useToast();
+  const [notes, setNotes] = useState<MedNote[]>(getNotes);
+  const [showForm, setShowForm] = useState(false);
+  const [doctorName, setDoctorName] = useState("");
+  const [doctorId, setDoctorId] = useState("");
+  const [hospital, setHospital] = useState("");
+  const [patientName, setPatientName] = useState("");
+  const [comments, setComments] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  function handleSubmit() {
+    if (!doctorName.trim() || !doctorId.trim() || !comments.trim()) {
+      toast({ title: "Missing fields", description: "Doctor name, ID and comments are required.", variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    const registry = getDoctors();
+    const verified = registry.some((d) => d.doctor_id.trim().toUpperCase() === doctorId.trim().toUpperCase());
+
+    setTimeout(() => {
+      const ts = new Date().toISOString();
+      const note: MedNote = {
+        id: Date.now().toString(),
+        doctorName: doctorName.trim(), doctorId: doctorId.trim().toUpperCase(),
+        hospital: hospital.trim() || "External Facility",
+        patientName: patientName.trim(), comments: comments.trim(),
+        timestamp: ts, verified,
+      };
+      const updated = [note, ...notes];
+      saveNotes(updated); setNotes(updated);
+
+      if (verified) {
+        pushDeanAlert({
+          id: note.id + "_alert",
+          doctorName: note.doctorName, doctorId: note.doctorId,
+          hospital: note.hospital,
+          patientName: note.patientName || "Unknown Patient",
+          commentPreview: note.comments.slice(0, 120),
+          timestamp: ts,
+        });
+      }
+
+      setDoctorName(""); setDoctorId(""); setHospital(""); setPatientName(""); setComments("");
+      setShowForm(false); setSubmitting(false);
+      toast({
+        title: verified ? "Note Added — Verified ✓" : "Note Added — Unverified",
+        description: verified
+          ? `Dr. ${note.doctorName} is in the approved registry. Dean notified.`
+          : "Doctor ID not found in registry. Note marked unverified.",
+        variant: verified ? "default" : "destructive",
+      });
+    }, 600);
+  }
+
+  function deleteNote(id: string) {
+    const updated = notes.filter((n) => n.id !== id);
+    saveNotes(updated); setNotes(updated);
+  }
+
+  function fmtTime(iso: string) {
+    try { return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }); }
+    catch { return iso; }
+  }
+
+  return (
+    <div className="p-6 max-w-[1100px] mx-auto w-full">
+      <div className="mb-6 flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="bg-violet-500/20 p-2 rounded-lg"><FileText className="w-5 h-5 text-violet-400" /></div>
+          <div>
+            <h1 className="text-xl font-black uppercase tracking-wider text-foreground">Doctor Medical Notes</h1>
+            <p className="text-xs text-muted-foreground">Cross-hospital treatment observations · Doctor verification required</p>
+          </div>
+        </div>
+        <Button onClick={() => setShowForm((p) => !p)} variant={showForm ? "outline" : "default"} size="sm" className="font-bold uppercase tracking-wider">
+          <Plus className="w-4 h-4 mr-1" />{showForm ? "Cancel" : "Add Note"}
+        </Button>
+      </div>
+
+      <div className="mb-5 flex items-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 px-4 py-2.5">
+        <ShieldCheck className="w-4 h-4 text-violet-400 shrink-0" />
+        <p className="text-xs text-violet-300/80">Doctor IDs are validated against the Sapthagiri Dean Registry. Only approved medical personnel may submit verified notes.</p>
+      </div>
+
+      {showForm && (
+        <Card className="mb-6 border-violet-500/30 bg-violet-500/5 shadow-lg">
+          <CardHeader className="pb-3 border-b border-violet-500/20">
+            <CardTitle className={SH}><Plus className="w-3.5 h-3.5 text-violet-400" /> New Doctor Treatment Note</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground font-medium">Doctor Full Name *</label>
+                <Input placeholder="Dr. Anil Kumar" value={doctorName} onChange={(e) => setDoctorName(e.target.value)} className="bg-background h-9" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground font-medium">Doctor ID (Registry Validation) *</label>
+                <Input placeholder="DOC-001" value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="bg-background h-9 font-mono uppercase" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground font-medium">Patient Name</label>
+                <Input placeholder="Ramesh Kumar, Priya Sharma..." value={patientName} onChange={(e) => setPatientName(e.target.value)} className="bg-background h-9" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground font-medium">Hospital / Clinic / Transfer Facility</label>
+                <Input placeholder="City General Hospital, Rural PHC..." value={hospital} onChange={(e) => setHospital(e.target.value)} className="bg-background h-9" />
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs text-muted-foreground font-medium">Treatment Comments / Observations *</label>
+                <Textarea placeholder="Patient stabilized with oxygen support before transfer. BP 140/90, SpO2 94%..." value={comments} onChange={(e) => setComments(e.target.value)} className="min-h-[90px] resize-none bg-background font-mono text-sm" />
+              </div>
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              <Button onClick={handleSubmit} disabled={submitting} className="font-bold uppercase tracking-wider px-6">
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                {submitting ? "Verifying & Submitting…" : "Submit & Verify"}
+              </Button>
+              <p className="text-[10px] text-muted-foreground/60">Doctor ID will be cross-checked with the Dean Registry</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {notes.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <FileText className="w-12 h-12 text-muted-foreground/20 mb-3" />
+          <p className="text-sm font-semibold text-muted-foreground/40 uppercase tracking-wider">No Medical Notes</p>
+          <p className="text-xs text-muted-foreground/30 mt-1">Transfer notes, ambulance observations, and cross-hospital records will appear here.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {notes.map((note) => (
+            <Card key={note.id} className={`border shadow-md ${note.verified ? "border-emerald-500/25 bg-emerald-500/5" : "border-amber-500/25 bg-amber-500/5"}`}>
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {note.verified ? (
+                      <Badge className="bg-emerald-500/15 border-emerald-500/40 text-emerald-400 border font-bold text-[10px] px-2 py-0.5 flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3" /> Verified
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-amber-500/15 border-amber-500/40 text-amber-400 border font-bold text-[10px] px-2 py-0.5 flex items-center gap-1">
+                        <ShieldX className="w-3 h-3" /> Unverified
+                      </Badge>
+                    )}
+                    <span className="text-xs font-black text-foreground">{note.doctorName}</span>
+                    <span className="text-[10px] font-mono text-muted-foreground border border-border rounded px-1.5 py-0.5">{note.doctorId}</span>
+                  </div>
+                  <button onClick={() => deleteNote(note.id)} className="text-muted-foreground/30 hover:text-red-400 transition-colors shrink-0">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-4 mb-2.5 flex-wrap">
+                  <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground"><Building2 className="w-3 h-3 text-violet-400" />{note.hospital}</span>
+                  <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground"><Clock className="w-3 h-3" />{fmtTime(note.timestamp)}</span>
+                </div>
+                <div className="rounded-md border border-border/40 bg-background/40 px-3 py-2.5">
+                  <p className="text-sm text-foreground/80 font-mono leading-relaxed whitespace-pre-wrap">{note.comments}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+================================================================
+FILE: artifacts/dashboard/src/pages/LandingPage.tsx
+================================================================
+(See full source in the project — multi-section public landing page:
+Navbar, Hero with animated orbs, About, Core Services, AI Chat Demo,
+Why Choose Us, Footer with emergency disclaimer)
+
+Key imports: wouter Link, lucide-react icons, Button, Card, logoUrl
+
+================================================================
+FILE: artifacts/dashboard/src/pages/LoginPage.tsx
+================================================================
+(Phone + password login → localStorage → /dashboard, Guest bypass)
+
+Key: saves { name, phone, email, role } to sapthagiri_user
+
+================================================================
+FILE: artifacts/dashboard/src/pages/SignUpPage.tsx
+================================================================
+(3-step: Phone → OTP verify → Profile → dashboard)
+POST /api/otp/send, POST /api/otp/verify
+Saves full profile to sapthagiri_user localStorage
+
+================================================================
+FILE: artifacts/dashboard/src/pages/Dashboard.tsx
+================================================================
+(1053 lines — main app shell with sidebar, all view panels)
+
+Contains: Sidebar, AccountPanel, DeanPanel (password: apa@07072007),
+main view switcher for dashboard|analysis|ai|account|dean|notes,
+30-minute session auto-expiry via sapthagiri_login_ts
+
+================================================================
+FILE: artifacts/dashboard/src/components/PatientList.tsx
+================================================================
+(Patient table, RED/YELLOW/GREEN badges, inline doctor-verified edit,
+mark-as-handled, delete, polls every 5s, DoctorVerificationModal gating)
+
+================================================================
+FILE: artifacts/dashboard/src/components/PatientAnalysisPanel.tsx
+================================================================
+(Full medical intake: identity, vitals, conditions, emergency notes,
+Zod validation, POST /api/patients, triage result banner)
+
+================================================================
+KEY REFERENCE
+================================================================
+Dean password:     apa@07072007
+Doctor IDs:        DOC001, DOC101, DOC102, DOC103, DOC104
+Auth:              localStorage.sapthagiri_user
+Session TTL key:   localStorage.sapthagiri_login_ts (30 min)
+Medical records:   localStorage.sapthagiri_med_<phone>
+Medical notes:     localStorage.sapthagiri_medical_notes
+Dean alerts:       localStorage.sapthagiri_dean_alerts
+Doctor registry:   localStorage.sapthagiri_doctors
+Primary color:     hsl(180 70% 50%) — cyan
+Gemini model:      gemini-2.5-flash
+API base:          /api → Express on PORT env var
+OTP TTL:           120 seconds, 5 max attempts
