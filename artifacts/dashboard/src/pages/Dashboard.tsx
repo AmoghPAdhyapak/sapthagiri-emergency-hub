@@ -1,14 +1,18 @@
-import React from "react";
+import { useState, useEffect } from "react";
 import { StatsBar } from "@/components/StatsBar";
 import { AdmitPatientForm } from "@/components/AdmitPatientForm";
 import { PatientList } from "@/components/PatientList";
-import { Activity } from "lucide-react";
+import { Activity, Bot } from "lucide-react";
+import { AiChatPanel } from "@/components/AiChatPanel";
+import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-primary selection:text-primary-foreground">
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-primary selection:text-primary-foreground overflow-hidden relative">
       {/* Top Navigation / Header */}
-      <header className="border-b border-border bg-card px-6 py-4 flex items-center justify-between shadow-sm">
+      <header className="border-b border-border bg-card px-6 py-4 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-red-500/20 p-2 rounded-md">
             <Activity className="w-6 h-6 text-red-500" />
@@ -23,6 +27,16 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="border-primary/50 text-primary hover:bg-primary/20 bg-background/50"
+            onClick={() => setIsChatOpen(!isChatOpen)}
+            data-testid="button-toggle-ai-chat"
+          >
+            <Bot className="w-4 h-4 mr-2" />
+            AI Assistant
+          </Button>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs font-mono text-emerald-500 uppercase tracking-widest font-bold">Live System Active</span>
@@ -64,14 +78,16 @@ export default function Dashboard() {
           </div>
         </section>
       </main>
+
+      <AiChatPanel isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </div>
   );
 }
 
 function LiveClock() {
-  const [time, setTime] = React.useState(new Date());
+  const [time, setTime] = useState(new Date());
   
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);

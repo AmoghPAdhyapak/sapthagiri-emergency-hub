@@ -1,0 +1,152 @@
+You are our Lead Backend Engineer and Architecture Consultant. We are building the server-side infrastructure for a "Smart Patient Emergency & Monitoring System" running on Replit using Node.js and Express.
+
+### 🏥 CONTEXT & CHATBOX ADDITION
+We have verified our main patient queue and triage management logic. We are now adding our second core feature: an Isolated AI Health Assistant Chat Box powered by the Gemini 1.5 Flash API. 
+
+To ensure absolute deployment survivability during our live presentation, you must follow these architectural boundaries:
+1. FRONTEND-BACKEND PROXY PIPELINE: The frontend will NOT call Gemini directly (to prevent API key theft). It will POST to our Replit backend, and our backend will safely proxy the request to Gemini.
+2. RUNTIME ISOLATION: The chat functionality must live completely on its own route (/api/chat) and be 100% stateless. It must not modify or look up the in-memory 'patients' array. If Gemini fails or times out, only the chat window fails—the main patient tracking queue must stay online perfectly.
+3. SYSTEM GUARDRAILS: Inject a strict system instruction to frame the AI's behavior as an assistant, eliminating medical diagnosis liability.
+4. DEPENDENCY-FREE CALLS: Use a standard node 'fetch' request to communicate with Google's endpoints directly instead of loading heavy SDK packages. This avoids version mismatch compilation errors in Replit.
+
+### 🛠️ REPLIT CODE TO IMPLEMENT
+Please generate the complete, production-ready source code for our `index.js` file. It must merge our existing patient monitoring logic with our new sandboxed Gemini proxy endpoint.
+
+Here is the complete codebase structure you must use to overwrite our Replit `index.js` file:
+
+const express = require("express");
+const cors = require("cors");
+
+const app = express();
+app.use(cors({ origin: "*" }));  // Allows seamless cross-origin request linkage with Lovable
+app.use(express.json());
+
+// ---- IN-MEMORY "DATABASE" ----
+let patients = [];
+let nextId = 1;
+
+// ---- AUTO-TRIAGE FROM SYMPTOMS (Deterministic Keyword Analysis) ----
+function triage(symptoms = "") {
+  const s = symptoms.toLowerCase();
+  const RED = ["chest pain","unconscious","not breathing","seizure","stroke","severe bleeding","cardiac","heart attack"];
+  const YELLOW = ["shortness of breath","high fever","fracture","vomiting blood","deep cut","dehydration","head injury"];
+  if (RED.some(k => s.includes(k)))    return "RED";
+  if (YELLOW.some(k => s.includes(k))) return "YELLOW";
+  return "GREEN";
+}
+
+// ---- GET /api/patients → Fetch Sorted Monitoring Queue ----
+app.get("/api/patients", (req, res) => {
+  const order = { RED: 0, YELLOW: 1, GREEN: 2 };
+  const sorted = [...patients].sort((a, b) => {
+    if (a.status === "handled" && b.status !== "handled") return 1;
+    if (b.status === "handled" && a.status !== "handled") return -1;
+    return (order[a.priority] ?? 3) - (order[b.priority] ?? 3);
+  });
+  res.json(sorted);
+});
+
+// ---- POST /api/patients → Admit New Patient ----
+app.post("/api/patients", (req, res) => {
+  const { name, room_no, bed_no, symptoms } = req.body || {};
+  if (!name || !room_no || !symptoms) {
+    return res.status(400).json({ error: "name, room_no, symptoms required" });
+  }
+  const patient = {
+    id: nextId++,
+    name,
+    room_no,
+    bed_no: bed_no || "",
+    symptoms,
+    priority: triage(symptoms),
+    status: "active",
+    created_at: new Date().toISOString(),
+  };
+  patients.push(patient);
+  res.status(201).json(patient);
+});
+
+// ---- PATCH /api/patients/:id → Update Patient Status Block ----
+app.patch("/api/patients/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const p = patients.find(x => x.id === id);
+  if (!p) return res.status(404).json({ error: "not found" });
+  Object.assign(p, req.body || {});
+  res.json(p);
+});
+
+// ---- DELETE /api/patients/:id → Optional Purge Endpoint ----
+app.delete("/api/patients/:id", (req, res) => {
+  const id = Number(req.params.id);
+  patients = patients.filter(x => x.id !== id);
+  res.json({ ok: true });
+});
+
+
+// =========================================================================
+// 🚀 NEW FEATURE: SANDBOXED AI HEALTH ASSISTANT PROXY (GEMINI 1.5 FLASH)
+// =========================================================================
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { message } = req.body || {};
+    if (!message) {
+      return res.status(400).json({ error: "Message content is missing" });
+    }
+
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_API_KEY) {
+      // Safe operational fallback if team forgets to configure environment keys
+      return res.status(200).json({ 
+        reply: "⚠️ [AI Server Notice]: Backend link is active, but the GEMINI_API_KEY is missing in Replit Secrets." 
+      });
+    }
+
+    // System instruction to safely frame the AI's behavior and reduce diagnosis liability
+    const systemInstruction = "You are a helpful, reassuring assistant for an emergency room triage dashboard. Provide concise guidance. You are NOT a doctor. Never give specific diagnoses or medical prescriptions. If symptoms sound severe, tell the user to notify medical staff immediately.";
+
+    const geminiPayload = {
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: `${systemInstruction}\n\nUser Question: ${message}` }]
+        }
+      ]
+    };
+
+    // Direct fetch invocation using Gemini 1.5 Flash for sub-second responses
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(geminiPayload)
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Gemini gateway error: Status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const aiReply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm having trouble analyzing that request right now.";
+
+    // Send the response back to our frontend chat box component
+    res.status(200).json({ reply: aiReply });
+
+  } catch (error) {
+    console.error("🚨 AI Chat Container Exception:", error.message);
+    // Sandboxed recovery: If Gemini fails, send a clean error payload. The main app stays up!
+    res.status(500).json({ 
+      error: "Internal AI connection fault.",
+      reply: "The AI Assistant is currently recalibrating its processor. Please talk directly to the onsite medical staff." 
+    });
+  }
+});
+
+// ---- BASE HEALTH CHECK ENDPOINT ----
+app.get("/", (_, res) => res.send("Patient Emergency API & Gemini Chat Engine Active ✅"));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`API Engine running live on port ${PORT}`));
+
+Confirm that you have integrated this setup into index.js cleanly, and confirm how to set the GEMINI_API_KEY environmental secret variable in Replit.
