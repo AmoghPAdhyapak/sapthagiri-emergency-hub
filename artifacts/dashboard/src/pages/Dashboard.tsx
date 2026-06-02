@@ -19,13 +19,20 @@ import {
   BedDouble,
   Stethoscope,
   AlertTriangle,
+  FileEdit,
+  ClipboardList,
+  CheckCircle2,
+  X,
 } from "lucide-react";
 import { AiChatPanel } from "@/components/AiChatPanel";
+import { DoctorVerificationModal } from "@/components/DoctorVerificationModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import defaultDoctors from "@/data/doctors.json";
 
 type DashView = "dashboard" | "account" | "dean";
@@ -56,6 +63,34 @@ function getDoctors(): Doctor[] {
 
 function saveDoctors(doctors: Doctor[]) {
   localStorage.setItem("sapthagiri_doctors", JSON.stringify(doctors));
+}
+
+// ── Medical Record helpers ────────────────────────────────────────────────────
+interface MedicalRecord {
+  clinicalNotes: string;
+  emergencyStatus: string;
+  lastUpdated: string | null;
+  verifiedNote: string | null;
+}
+
+const DEFAULT_MED_RECORD: MedicalRecord = {
+  clinicalNotes: "",
+  emergencyStatus: "Registered — No Active Incidents",
+  lastUpdated: null,
+  verifiedNote: null,
+};
+
+function getMedRecord(phone: string | undefined): MedicalRecord {
+  try {
+    const key = `sapthagiri_med_${phone || "default"}`;
+    const stored = localStorage.getItem(key);
+    if (stored) return { ...DEFAULT_MED_RECORD, ...(JSON.parse(stored) as Partial<MedicalRecord>) };
+  } catch { /* ignore */ }
+  return { ...DEFAULT_MED_RECORD };
+}
+
+function saveMedRecord(phone: string | undefined, record: MedicalRecord) {
+  localStorage.setItem(`sapthagiri_med_${phone || "default"}`, JSON.stringify(record));
 }
 
 // ── Sidebar ──────────────────────────────────────────────────────────────────
@@ -105,103 +140,251 @@ function Sidebar({
 }
 
 // ── Account Panel ─────────────────────────────────────────────────────────────
+const STATUS_COLORS: Record<string, string> = {
+  "Registered — No Active Incidents": "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+  "Under Observation":                "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+  "Active Emergency — GREEN":         "bg-emerald-500/20 text-emerald-300 border-emerald-500/50",
+  "Active Emergency — YELLOW":        "bg-yellow-500/20 text-yellow-300 border-yellow-500/50",
+  "Active Emergency — RED":           "bg-red-500/20 text-red-300 border-red-500/50",
+};
+
 function AccountPanel({ user }: { user: UserData | null }) {
+  const [verifyOpen, setVerifyOpen]   = useState(false);
+  const [editMode, setEditMode]       = useState(false);
+  const [medRecord, setMedRecord]     = useState<MedicalRecord>(() => getMedRecord(user?.phone));
+  const [editNotes, setEditNotes]     = useState("");
+  const [editStatus, setEditStatus]   = useState("");
+
   if (!user) {
-    return (
-      <div className="p-8 text-center text-muted-foreground">No account data found. Please log in.</div>
-    );
+    return <div className="p-8 text-center text-muted-foreground">No account data found. Please log in.</div>;
   }
 
   const roleColor: Record<string, string> = {
     Patient: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    Doctor: "bg-primary/20 text-primary border-primary/30",
-    Nurse: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-    Admin: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-    Staff: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+    Doctor:  "bg-primary/20 text-primary border-primary/30",
+    Nurse:   "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    Admin:   "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    Staff:   "bg-gray-500/20 text-gray-400 border-gray-500/30",
   };
+
+  const handleDoctorVerified = () => {
+    setEditNotes(medRecord.clinicalNotes);
+    setEditStatus(medRecord.emergencyStatus);
+    setEditMode(true);
+  };
+
+  const handleSave = () => {
+    const updated: MedicalRecord = {
+      clinicalNotes:  editNotes,
+      emergencyStatus: editStatus,
+      lastUpdated:    new Date().toISOString(),
+      verifiedNote:   "Doctor-verified edit",
+    };
+    saveMedRecord(user.phone, updated);
+    setMedRecord(updated);
+    setEditMode(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditMode(false);
+    setEditNotes("");
+    setEditStatus("");
+  };
+
+  const statusClass = STATUS_COLORS[medRecord.emergencyStatus] ?? STATUS_COLORS["Registered — No Active Incidents"];
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
+      <DoctorVerificationModal
+        open={verifyOpen}
+        onClose={() => setVerifyOpen(false)}
+        onVerified={handleDoctorVerified}
+        action="edit this patient's health record"
+      />
+
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-foreground">Patient / Staff Account</h2>
-        <p className="text-sm text-muted-foreground mt-1">Registered profile information. Critical health record edits require doctor approval.</p>
+        <h2 className="text-xl font-bold text-foreground">Patient Account</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Registered profile and medical records. Clinical record edits require a valid Doctor ID.
+        </p>
       </div>
 
+      {/* Identity Card */}
       <Card className="mb-4">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
             <User className="w-4 h-4" /> Identity
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between py-2 border-b border-border/50">
+        <CardContent className="space-y-0 divide-y divide-border/50">
+          <div className="flex items-center justify-between py-3">
             <span className="text-sm text-muted-foreground font-medium">Full Name</span>
             <span className="text-sm font-semibold text-foreground">{user.name}</span>
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-border/50">
+          <div className="flex items-center justify-between py-3">
             <span className="text-sm text-muted-foreground font-medium flex items-center gap-2">
               <Phone className="w-3.5 h-3.5 text-primary" /> Phone Number
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-primary border-primary/30">PRIMARY ID</Badge>
             </span>
             <span className="text-sm font-mono font-semibold text-foreground">{user.phone || "—"}</span>
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-border/50">
+          <div className="flex items-center justify-between py-3">
             <span className="text-sm text-muted-foreground font-medium flex items-center gap-2">
               <Mail className="w-3.5 h-3.5" /> Email
               <span className="text-[10px] text-muted-foreground">(backup)</span>
             </span>
             <span className="text-sm text-foreground">{user.email || "—"}</span>
           </div>
-          <div className="flex items-center justify-between py-2">
+          <div className="flex items-center justify-between py-3">
             <span className="text-sm text-muted-foreground font-medium">Role</span>
-            <Badge
-              variant="outline"
-              className={`text-xs font-semibold ${roleColor[user.role ?? "Staff"] ?? roleColor["Staff"]}`}
-            >
+            <Badge variant="outline" className={`text-xs font-semibold ${roleColor[user.role ?? "Staff"] ?? roleColor["Staff"]}`}>
               {user.role || "Staff"}
             </Badge>
           </div>
         </CardContent>
       </Card>
 
+      {/* Admission Details */}
       <Card className="mb-4">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
             <BedDouble className="w-4 h-4" /> Admission Details
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between py-2 border-b border-border/50">
+        <CardContent className="space-y-0 divide-y divide-border/50">
+          <div className="flex items-center justify-between py-3">
             <span className="text-sm text-muted-foreground font-medium">Room Number</span>
             <span className="text-sm font-mono font-semibold text-foreground uppercase">{user.roomNumber || "—"}</span>
           </div>
-          <div className="flex items-center justify-between py-2">
+          <div className="flex items-center justify-between py-3">
             <span className="text-sm text-muted-foreground font-medium">Emergency Status</span>
-            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs">
-              Registered & Monitoring
+            <Badge variant="outline" className={`text-xs font-semibold ${statusClass}`}>
+              {medRecord.emergencyStatus}
             </Badge>
           </div>
         </CardContent>
       </Card>
 
+      {/* Clinical Medical Records */}
+      <Card className="mb-4">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <ClipboardList className="w-4 h-4" /> Clinical Medical Records
+            </CardTitle>
+            {!editMode && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs border-primary/40 text-primary hover:bg-primary/10"
+                onClick={() => setVerifyOpen(true)}
+                data-testid="button-edit-health-record"
+              >
+                <FileEdit className="w-3.5 h-3.5 mr-1.5" />
+                Edit Health Record
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editMode ? (
+            <div className="space-y-4">
+              <div className="bg-primary/5 border border-primary/20 rounded-md px-3 py-2 text-xs text-primary flex items-center gap-2">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                Doctor-verified edit in progress. Changes will be saved to the patient record.
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Emergency Status</Label>
+                <Select value={editStatus} onValueChange={setEditStatus}>
+                  <SelectTrigger className="bg-background/50" data-testid="select-emergency-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(STATUS_COLORS).map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
+                  Clinical Notes / Medical Observations
+                </Label>
+                <Textarea
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Enter clinical observations, diagnoses, treatment notes, and medical findings..."
+                  className="min-h-[140px] resize-none bg-background/50 font-mono text-sm"
+                  data-testid="textarea-clinical-notes"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <Button onClick={handleSave} size="sm" className="flex-1" data-testid="button-save-record">
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Save Medical Record
+                </Button>
+                <Button onClick={handleCancelEdit} size="sm" variant="outline" data-testid="button-cancel-edit">
+                  <X className="w-4 h-4 mr-1" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              {medRecord.clinicalNotes ? (
+                <>
+                  <div className="bg-muted/40 rounded-md p-4 text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed">
+                    {medRecord.clinicalNotes}
+                  </div>
+                  {medRecord.lastUpdated && (
+                    <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                      <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                      Last updated:{" "}
+                      {new Date(medRecord.lastUpdated).toLocaleString("en-US", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}{" "}
+                      · {medRecord.verifiedNote}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-center border-2 border-dashed border-border rounded-lg">
+                  <Stethoscope className="w-10 h-10 text-muted-foreground/40 mb-3" />
+                  <p className="text-sm font-semibold text-muted-foreground">No medical observations yet</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">Awaiting medical intake or doctor update</p>
+                  <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground/60">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400/60" />
+                    Requires a valid Doctor ID to add observations
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Self-reported symptoms (registration only — not clinical) */}
       {user.symptoms && (
-        <Card>
+        <Card className="border-border/40">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <Stethoscope className="w-4 h-4" /> Health Observations
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-400 border-amber-500/30 ml-auto flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3" /> Edits require Doctor approval
+              <AlertTriangle className="w-4 h-4 text-amber-400" /> Patient-Reported Symptoms
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-400 border-amber-500/30 ml-auto">
+                Self-reported at registration
               </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted/40 rounded-md p-4 text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed">
+            <div className="bg-amber-500/5 border border-amber-500/15 rounded-md p-4 text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed italic">
               {user.symptoms}
             </div>
-            <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-              Modifying health records requires a valid Doctor ID. Contact your attending physician.
-            </div>
+            <p className="text-xs text-muted-foreground/60 mt-3">
+              This is patient self-reported data from registration — not a clinical diagnosis. A doctor must review and enter official observations above.
+            </p>
           </CardContent>
         </Card>
       )}

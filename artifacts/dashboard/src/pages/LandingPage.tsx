@@ -36,6 +36,22 @@ export default function LandingPage() {
         className="relative min-h-[90vh] flex flex-col items-center justify-center px-6 py-20 text-center overflow-hidden"
         style={{ background: 'radial-gradient(ellipse at 20% 50%, hsl(180 80% 8%) 0%, hsl(220 15% 4%) 60%)' }}
       >
+        {/* Ambient floating orbs — pure CSS, zero JS */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
+          <div className="absolute top-1/4 left-[8%]  w-72 h-72 rounded-full bg-primary/20 blur-3xl animate-orb-float" />
+          <div className="absolute bottom-1/4 right-[8%] w-96 h-96 rounded-full bg-blue-500/15 blur-3xl animate-orb-float-alt" />
+          <div className="absolute top-[55%] left-[45%] w-56 h-56 rounded-full bg-primary/10 blur-2xl animate-orb-drift" />
+          {/* Subtle teal grid mesh */}
+          <div
+            className="absolute inset-0 animate-grid-fade"
+            style={{
+              backgroundImage:
+                'linear-gradient(hsl(180 70% 50% / 0.04) 1px, transparent 1px), linear-gradient(90deg, hsl(180 70% 50% / 0.04) 1px, transparent 1px)',
+              backgroundSize: '64px 64px',
+            }}
+          />
+        </div>
+
         <div className="absolute top-10 flex items-center gap-2 bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-1.5 rounded-full text-sm font-semibold tracking-wider animate-pulse">
           <span className="w-2 h-2 rounded-full bg-red-500" />
           🔴 LIVE Emergency System
