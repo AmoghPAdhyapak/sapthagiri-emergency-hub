@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type Priority = typeof Priority[keyof typeof Priority];
+
+
+export const Priority = {
+  RED: 'RED',
+  YELLOW: 'YELLOW',
+  GREEN: 'GREEN',
+} as const;

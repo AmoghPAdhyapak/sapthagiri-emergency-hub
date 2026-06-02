@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Smart Patient Emergency & Monitoring System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: patients
+    description: Patient management operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,115 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /patients:
+    get:
+      operationId: listPatients
+      tags: [patients]
+      summary: List all patients
+      description: Returns all patients sorted by priority (RED first) and handled status
+      responses:
+        "200":
+          description: List of patients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Patient"
+    post:
+      operationId: admitPatient
+      tags: [patients]
+      summary: Admit a new patient
+      description: Admits a patient and auto-triages based on symptoms
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdmitPatientRequest"
+      responses:
+        "201":
+          description: Patient admitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /patients/{id}:
+    patch:
+      operationId: updatePatient
+      tags: [patients]
+      summary: Update patient status or info
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePatientRequest"
+      responses:
+        "200":
+          description: Patient updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+        "404":
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePatient
+      tags: [patients]
+      summary: Delete a patient record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Patient deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "404":
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /patients/stats:
+    get:
+      operationId: getPatientStats
+      tags: [patients]
+      summary: Get patient statistics summary
+      description: Returns counts by priority and status for the dashboard overview
+      responses:
+        "200":
+          description: Patient statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatientStats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +145,111 @@ components:
       required:
         - status
 
+    Priority:
+      type: string
+      enum: [RED, YELLOW, GREEN]
+
+    PatientStatus:
+      type: string
+      enum: [active, handled]
+
+    Patient:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        room_no:
+          type: string
+        bed_no:
+          type: string
+        symptoms:
+          type: string
+        priority:
+          $ref: "#/components/schemas/Priority"
+        status:
+          $ref: "#/components/schemas/PatientStatus"
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - room_no
+        - bed_no
+        - symptoms
+        - priority
+        - status
+        - created_at
+
+    AdmitPatientRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        room_no:
+          type: string
+        bed_no:
+          type: string
+        symptoms:
+          type: string
+      required:
+        - name
+        - room_no
+        - symptoms
+
+    UpdatePatientRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        room_no:
+          type: string
+        bed_no:
+          type: string
+        symptoms:
+          type: string
+        status:
+          $ref: "#/components/schemas/PatientStatus"
+        priority:
+          $ref: "#/components/schemas/Priority"
+
+    PatientStats:
+      type: object
+      properties:
+        total:
+          type: integer
+        active:
+          type: integer
+        handled:
+          type: integer
+        red:
+          type: integer
+        yellow:
+          type: integer
+        green:
+          type: integer
+      required:
+        - total
+        - active
+        - handled
+        - red
+        - yellow
+        - green
+
+    DeleteResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required:
+        - ok
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

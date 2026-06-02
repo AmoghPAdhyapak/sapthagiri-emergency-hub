@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface AdmitPatientRequest {
+  name: string;
+  room_no: string;
+  bed_no?: string;
+  symptoms: string;
 }

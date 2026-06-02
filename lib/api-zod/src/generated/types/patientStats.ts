@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface PatientStats {
+  total: number;
+  active: number;
+  handled: number;
+  red: number;
+  yellow: number;
+  green: number;
 }

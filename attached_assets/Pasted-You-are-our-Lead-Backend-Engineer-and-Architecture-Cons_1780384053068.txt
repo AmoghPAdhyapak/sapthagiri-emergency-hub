@@ -1,0 +1,86 @@
+You are our Lead Backend Engineer and Architecture Consultant for a high-pressure healthcare hackathon project. We are building the server-side infrastructure for a "Smart Patient Emergency & Monitoring System".
+
+### 🏥 PROJECT OVERVIEW & CONTEXT
+This system is an emergency control room dashboard designed for hospital triage staff to track incoming emergencies in real-time. 
+- **The Problem:** Hospital staff are overwhelmed during crises and cannot classify patient severity quickly enough, leading to delays in life-saving treatment.
+- **Our Solution:** A live dashboard where staff admit a patient with their symptoms. The system instantly auto-triages the patient based on keywords into priority tiers (RED, YELLOW, GREEN) and bubbles critical emergencies to the top of a live monitoring list.
+- **The Tech Stack:** Heavy client-side UI built using Lovable/v0 (React & Tailwind CSS) making persistent HTTP requests to our Node.js/Express server hosted right here on Replit.
+
+### 🔌 CURRENT BACKEND CODE CONTRACT (`index.js`)
+Here is our working server architecture code running in this environment:
+
+```javascript
+const express = require("express");
+const cors = require("cors");
+
+const app = express();
+app.use(cors());                  // allow your Lovable frontend
+app.use(express.json());
+
+// ---- in-memory "database" ----
+let patients = [];
+let nextId = 1;
+
+// ---- Auto-triage from symptoms (simple keyword rules) ----
+function triage(symptoms = "") {
+  const s = symptoms.toLowerCase();
+  const RED = ["chest pain","unconscious","not breathing","seizure","stroke","severe bleeding","cardiac","heart attack"];
+  const YELLOW = ["shortness of breath","high fever","fracture","vomiting blood","deep cut","dehydration","head injury"];
+  if (RED.some(k => s.includes(k)))    return "RED";
+  if (YELLOW.some(k => s.includes(k))) return "YELLOW";
+  return "GREEN";
+}
+
+// ---- GET /api/patients  → list ----
+app.get("/api/patients", (req, res) => {
+  // newest first, RED first
+  const order = { RED: 0, YELLOW: 1, GREEN: 2 };
+  const sorted = [...patients].sort((a, b) => {
+    if (a.status === "handled" && b.status !== "handled") return 1;
+    if (b.status === "handled" && a.status !== "handled") return -1;
+    return (order[a.priority] ?? 3) - (order[b.priority] ?? 3);
+  });
+  res.json(sorted);
+});
+
+// ---- POST /api/patients  → admit ----
+app.post("/api/patients", (req, res) => {
+  const { name, room_no, bed_no, symptoms } = req.body || {};
+  if (!name || !room_no || !symptoms) {
+    return res.status(400).json({ error: "name, room_no, symptoms required" });
+  }
+  const patient = {
+    id: nextId++,
+    name,
+    room_no,
+    bed_no: bed_no || "",
+    symptoms,
+    priority: triage(symptoms),
+    status: "active",
+    created_at: new Date().toISOString(),
+  };
+  patients.push(patient);
+  res.status(201).json(patient);
+});
+
+// ---- PATCH /api/patients/:id  → mark handled / update ----
+app.patch("/api/patients/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const p = patients.find(x => x.id === id);
+  if (!p) return res.status(404).json({ error: "not found" });
+  Object.assign(p, req.body || {});
+  res.json(p);
+});
+
+// ---- DELETE (optional) ----
+app.delete("/api/patients/:id", (req, res) => {
+  const id = Number(req.params.id);
+  patients = patients.filter(x => x.id !== id);
+  res.json({ ok: true });
+});
+
+// health check
+app.get("/", (_, res) => res.send("Patient Emergency API ✅"));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`API running on ${PORT}`));
