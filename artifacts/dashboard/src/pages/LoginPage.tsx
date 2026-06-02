@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { HeartPulse, LogIn, ArrowRight, Phone } from "lucide-react";
+import { LogIn, ArrowRight, Phone } from "lucide-react";
+import logoUrl from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,11 +43,10 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md relative z-10">
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="bg-primary/20 p-3 rounded-xl mb-4">
-            <HeartPulse className="w-8 h-8 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Sapthagiri Emergency</h1>
-          <p className="text-sm text-muted-foreground uppercase tracking-widest mt-1">Authorized Medical Staff Access</p>
+          <img src={logoUrl} alt="Sapthagiri NPS University" className="h-20 w-20 object-contain mb-3" />
+          <h1 className="text-2xl font-bold tracking-tight">Sapthagiri NPS University</h1>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest mt-1">Institute of Medical Sciences &amp; Research Center</p>
+          <p className="text-xs text-primary/70 font-semibold uppercase tracking-wider mt-0.5">Authorized Staff Access</p>
         </div>
 
         <Card className="border-primary/20 shadow-[0_0_30px_hsl(180_70%_50%_/_0.1)] bg-card/80 backdrop-blur-sm glow-border">

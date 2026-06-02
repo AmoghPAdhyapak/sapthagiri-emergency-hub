@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import defaultDoctors from "@/data/doctors.json";
+import logoUrl from "@/assets/logo.png";
 
 type DashView = "dashboard" | "account" | "dean";
 
@@ -109,7 +110,15 @@ function Sidebar({
 
   return (
     <aside className="w-56 shrink-0 border-r border-border bg-card flex flex-col py-4 overflow-y-auto">
-      <div className="px-4 mb-6">
+      {/* Logo + brand */}
+      <div className="px-4 mb-5 flex items-center gap-2.5">
+        <img src={logoUrl} alt="Sapthagiri NPS" className="h-9 w-9 object-contain shrink-0" />
+        <div className="min-w-0">
+          <p className="text-xs font-black text-foreground leading-tight truncate">Sapthagiri NPS</p>
+          <p className="text-[9px] text-muted-foreground uppercase tracking-widest truncate">Medical Portal</p>
+        </div>
+      </div>
+      <div className="px-4 mb-3">
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Navigation</p>
       </div>
       <nav className="flex flex-col gap-1 px-2 flex-1">

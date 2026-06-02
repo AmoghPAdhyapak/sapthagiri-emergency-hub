@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  HeartPulse,
   Phone,
   MessageSquare,
   CheckCircle2,
@@ -11,6 +10,7 @@ import {
   ShieldCheck,
   Mail,
 } from "lucide-react";
+import logoUrl from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -170,11 +170,12 @@ export default function SignUpPage() {
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="bg-primary/20 p-3 rounded-xl mb-4 ring-1 ring-primary/30">
-            <HeartPulse className="w-8 h-8 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Sapthagiri Healthcare</h1>
-          <p className="text-sm text-muted-foreground uppercase tracking-widest mt-1">
+          <img src={logoUrl} alt="Sapthagiri NPS University" className="h-20 w-20 object-contain mb-3" />
+          <h1 className="text-2xl font-bold tracking-tight">Sapthagiri NPS University</h1>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest mt-1">
+            Institute of Medical Sciences &amp; Research Center
+          </p>
+          <p className="text-xs text-primary/70 font-semibold uppercase tracking-wider mt-0.5">
             Patient Registration Portal
           </p>
         </div>

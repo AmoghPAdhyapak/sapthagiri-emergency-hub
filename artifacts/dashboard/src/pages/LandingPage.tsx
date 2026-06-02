@@ -1,7 +1,8 @@
 import { Link } from "wouter";
-import { HeartPulse, Bot, Activity, Brain, Users, ShieldCheck, Phone, Mail } from "lucide-react";
+import { Bot, Activity, Brain, Users, ShieldCheck, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import logoUrl from "@/assets/logo.png";
 
 export default function LandingPage() {
   const scrollToAbout = () => {
@@ -13,12 +14,10 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="bg-primary/20 p-2 rounded-md">
-            <HeartPulse className="w-6 h-6 text-primary" />
-          </div>
+          <img src={logoUrl} alt="Sapthagiri NPS University" className="h-10 w-10 object-contain" />
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground leading-none">Sapthagiri</h1>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Healthcare & Emergency Care</p>
+            <h1 className="text-xl font-bold tracking-tight text-foreground leading-none">Sapthagiri NPS</h1>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Medical Care Portal</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -275,8 +274,8 @@ export default function LandingPage() {
       <footer className="bg-card border-t border-border py-12 px-6 mt-auto">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2">
-            <HeartPulse className="w-5 h-5 text-primary" />
-            <span className="font-bold text-foreground">Sapthagiri Healthcare</span>
+            <img src={logoUrl} alt="Sapthagiri NPS" className="h-7 w-7 object-contain" />
+            <span className="font-bold text-foreground">Sapthagiri NPS University</span>
           </div>
           <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
             <button onClick={scrollToAbout} className="hover:text-primary transition-colors">About</button>
