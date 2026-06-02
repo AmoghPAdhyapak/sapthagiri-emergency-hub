@@ -440,11 +440,28 @@ function AccountPanel({ user }: { user: UserData | null }) {
 const DEAN_PASSWORD = "apa@07072007";
 const DEAN_NAME = "Dr. Amogh P Adhyapak";
 
+interface DeanAlert {
+  id: string;
+  doctorName: string;
+  doctorId: string;
+  hospital: string;
+  patientName: string;
+  commentPreview: string;
+  timestamp: string;
+}
+
+function getDeanAlerts(): DeanAlert[] {
+  try {
+    return JSON.parse(localStorage.getItem("sapthagiri_dean_alerts") || "[]") as DeanAlert[];
+  } catch { return []; }
+}
+
 function DeanPanel() {
   const [unlocked, setUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [authError, setAuthError] = useState("");
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [alerts, setAlerts] = useState<DeanAlert[]>([]);
   const [newName, setNewName] = useState("");
   const [newId, setNewId] = useState("");
   const [addError, setAddError] = useState("");
@@ -453,6 +470,7 @@ function DeanPanel() {
     e.preventDefault();
     if (passwordInput === DEAN_PASSWORD) {
       setDoctors(getDoctors());
+      setAlerts(getDeanAlerts());
       setUnlocked(true);
       setAuthError("");
     } else {
@@ -587,6 +605,41 @@ function DeanPanel() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dean Notifications */}
+      {alerts.length > 0 && (
+        <Card className="mb-6 border-amber-500/30 bg-amber-500/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+              <AlertOctagon className="w-4 h-4" /> Medical Notes Audit Log ({alerts.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border/50 max-h-72 overflow-y-auto">
+              {alerts.map((a) => (
+                <div key={a.id} className="px-5 py-3 hover:bg-muted/20">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <p className="text-xs font-semibold text-foreground">
+                      <span className="text-amber-400">{a.doctorName}</span>
+                      {" "}
+                      <span className="font-mono text-muted-foreground text-[10px]">({a.doctorId})</span>
+                      {" "}added emergency treatment notes
+                      {a.patientName ? <> for patient <span className="text-primary">{a.patientName}</span></> : ""}.
+                    </p>
+                    <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                      {new Date(a.timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Source: {a.hospital} · {new Date(a.timestamp).toLocaleDateString("en-IN")}
+                  </p>
+                  <p className="text-xs font-mono text-muted-foreground/70 mt-1 truncate">"{a.commentPreview}"</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Doctor Registry */}
       <Card>

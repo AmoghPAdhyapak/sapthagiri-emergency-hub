@@ -16,9 +16,27 @@ interface MedNote {
   doctorName: string;
   doctorId: string;
   hospital: string;
+  patientName: string;
   comments: string;
   timestamp: string;
   verified: boolean;
+}
+
+interface DeanAlert {
+  id: string;
+  doctorName: string;
+  doctorId: string;
+  hospital: string;
+  patientName: string;
+  commentPreview: string;
+  timestamp: string;
+}
+
+function pushDeanAlert(alert: DeanAlert) {
+  try {
+    const existing: DeanAlert[] = JSON.parse(localStorage.getItem("sapthagiri_dean_alerts") || "[]");
+    localStorage.setItem("sapthagiri_dean_alerts", JSON.stringify([alert, ...existing]));
+  } catch { /* ignore */ }
 }
 
 function getDoctors(): Doctor[] {
@@ -50,6 +68,7 @@ export function MedicalNotesPanel() {
   const [doctorName, setDoctorName] = useState("");
   const [doctorId, setDoctorId] = useState("");
   const [hospital, setHospital] = useState("");
+  const [patientName, setPatientName] = useState("");
   const [comments, setComments] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -67,25 +86,41 @@ export function MedicalNotesPanel() {
     );
 
     setTimeout(() => {
+      const ts = new Date().toISOString();
       const note: MedNote = {
         id: Date.now().toString(),
         doctorName: doctorName.trim(),
         doctorId: doctorId.trim().toUpperCase(),
         hospital: hospital.trim() || "External Facility",
+        patientName: patientName.trim(),
         comments: comments.trim(),
-        timestamp: new Date().toISOString(),
+        timestamp: ts,
         verified,
       };
       const updated = [note, ...notes];
       saveNotes(updated);
       setNotes(updated);
-      setDoctorName(""); setDoctorId(""); setHospital(""); setComments("");
+
+      // Push dean audit alert for verified notes
+      if (verified) {
+        pushDeanAlert({
+          id: note.id + "_alert",
+          doctorName: note.doctorName,
+          doctorId: note.doctorId,
+          hospital: note.hospital,
+          patientName: note.patientName || "Unknown Patient",
+          commentPreview: note.comments.slice(0, 120),
+          timestamp: ts,
+        });
+      }
+
+      setDoctorName(""); setDoctorId(""); setHospital(""); setPatientName(""); setComments("");
       setShowForm(false);
       setSubmitting(false);
       toast({
         title: verified ? "Note Added — Verified ✓" : "Note Added — Unverified",
         description: verified
-          ? `Dr. ${note.doctorName} is in the approved registry.`
+          ? `Dr. ${note.doctorName} is in the approved registry. Dean notified.`
           : "Doctor ID not found in registry. Note marked unverified.",
         variant: verified ? "default" : "destructive",
       });
@@ -166,10 +201,19 @@ export function MedicalNotesPanel() {
                   className="bg-background h-9 font-mono uppercase"
                 />
               </div>
-              <div className="space-y-1 sm:col-span-2">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground font-medium">Patient Name</label>
+                <Input
+                  placeholder="Ramesh Kumar, Priya Sharma..."
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
+                  className="bg-background h-9"
+                />
+              </div>
+              <div className="space-y-1">
                 <label className="text-xs text-muted-foreground font-medium">Hospital / Clinic / Transfer Facility</label>
                 <Input
-                  placeholder="City General Hospital, Rural PHC, Ambulance Unit 7..."
+                  placeholder="City General Hospital, Rural PHC..."
                   value={hospital}
                   onChange={(e) => setHospital(e.target.value)}
                   className="bg-background h-9"
