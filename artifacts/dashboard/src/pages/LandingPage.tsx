@@ -285,12 +285,22 @@ export default function LandingPage() {
             <Link href="/signup" className="hover:text-primary transition-colors">Patient Registration</Link>
           </div>
         </div>
-        <div className="max-w-6xl mx-auto mt-8 pt-8 border-t border-border/50 text-center flex flex-col gap-4">
-          <p className="text-sm font-semibold text-destructive">
+        <div className="max-w-6xl mx-auto mt-8 pt-8 border-t border-border/50 flex flex-col items-center gap-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Mail className="w-4 h-4 text-primary shrink-0" />
+            Patient Support &amp; Help Centre:{" "}
+            <a
+              href="mailto:sapthagiri.healthsupport@gmail.com"
+              className="text-primary hover:underline font-medium ml-1"
+            >
+              sapthagiri.healthsupport@gmail.com
+            </a>
+          </div>
+          <p className="text-sm font-semibold text-destructive text-center">
             Not a replacement for emergency services. Call 108 immediately for life-threatening emergencies.
           </p>
           <p className="text-xs text-muted-foreground">
-            © 2025 Sapthagiri Healthcare & Emergency Care. All rights reserved.
+            © 2026 Sapthagiri Healthcare &amp; Emergency Care. All rights reserved.
           </p>
         </div>
       </footer>

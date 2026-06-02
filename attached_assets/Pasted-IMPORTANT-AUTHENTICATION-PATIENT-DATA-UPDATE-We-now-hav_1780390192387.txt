@@ -1,0 +1,150 @@
+IMPORTANT AUTHENTICATION + PATIENT DATA UPDATE
+
+We now have official healthcare support credentials for the platform:
+
+Support Email:
+[sapthagiri.healthsupport@gmail.com](mailto:sapthagiri.healthsupport@gmail.com)
+
+This email should be used for:
+
+* support center identity
+* healthcare help contact
+* OTP/help-service branding
+* patient support messaging
+
+---
+
+1. MOBILE OTP REGISTRATION FLOW 📱
+
+---
+
+IMPORTANT:
+Patient signup should now primarily use:
+
+* mobile number verification
+* OTP sent through SMS
+
+Email should remain:
+
+* secondary backup contact only
+
+Desired signup flow:
+
+Enter phone number
+↓
+Receive OTP SMS
+↓
+Verify OTP
+↓
+Create patient account
+↓
+Access healthcare dashboard
+
+IMPORTANT:
+Keep this implementation LIGHTWEIGHT and hackathon-safe.
+
+DO NOT build enterprise authentication systems.
+
+Use:
+
+* simple OTP simulation
+  OR
+* lightweight OTP API integration
+  OR
+* frontend-only mock verification if real SMS integration becomes risky under time pressure
+
+Goal:
+The system should FEEL like a real hospital onboarding flow.
+
+---
+
+2. CRITICAL PATIENT DATA RESET BUG 🚨
+
+---
+
+Current issue:
+Old/default patient medical data still appears incorrectly.
+
+REQUIRED FIX:
+
+When a NEW patient account is created:
+ONLY retain:
+
+* login identity
+* phone number
+* email backup
+* basic profile data
+
+DELETE / RESET:
+
+* symptoms
+* observations
+* emergency history
+* doctor notes
+* emergency priority
+* previous medical records
+
+New patient should start with:
+
+* clean medical state
+* no fake emergency history
+* no preloaded health conditions
+
+Dashboard should show:
+
+* “No medical records yet”
+  OR
+* “Awaiting medical intake”
+
+until actual records are created.
+
+IMPORTANT:
+ONLY clear patient medical information.
+
+DO NOT delete:
+
+* doctor registry
+* dean settings
+* AI assistant
+* hospital configuration
+* support system
+* backend APIs
+* authentication/session info
+
+---
+
+3. KEEP ARCHITECTURE LIGHTWEIGHT
+
+---
+
+DO NOT:
+
+* introduce enterprise auth
+* add Firebase auth systems
+* add JWT complexity
+* create massive backend restructuring
+
+Keep:
+
+* current deployment stable
+* existing APIs working
+* hackathon-safe simplicity
+* minimal-file modifications
+
+---
+
+4. FINAL UX GOAL
+
+---
+
+The platform should now feel like:
+
+# a real AI-assisted hospital patient onboarding & emergency care platform
+
+with:
+
+* phone-number-based patient registration
+* OTP verification flow
+* clean patient records
+* believable medical workflow
+* professional healthcare onboarding experience
