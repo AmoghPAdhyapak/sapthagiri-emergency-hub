@@ -1,0 +1,181 @@
+You are our Lead Backend Engineer and Systems Administrator. Our frontend team on Lovable is deploying a high-fidelity "Presentation Layer Upgrade" that introduces a client-side guest authentication system with specific staff roles:
+1. "Dr. Evelyn Vance (Chief Triage Officer)"
+2. "Nurse Marcus Brody (ER Coordinator)"
+
+We need to update our Express server logging format so that during the live hackathon presentation, the judges can watch active, professional server-side terminal audits tied directly to these frontend user identities.
+
+### 🛠️ REQUIRED SERVER LOGGING UPGRADES (`index.js`)
+Please modify our existing database transaction routes to read an optional identification header named 'X-Staff-Identity' from incoming client network fetch requests.
+
+Update the following server actions inside 'index.js':
+1. POST /api/patients (Admissions Log):
+   - Capture the 'X-Staff-Identity' header value. Default to "System Gateway" if missing.
+   - Console log the transaction cleanly in this format: 
+     `[AUDIT] 🏨 Staff Identity [${staff}] successfully ADMITTED patient: ${name} to Room ${room_no}.`
+
+2. PATCH /api/patients/:id (Triage Update Log):
+   - Capture the 'X-Staff-Identity' header value.
+   - Console log the transaction cleanly in this format:
+     `[AUDIT] ⚡ Staff Identity [${staff}] updated status for Patient ID #${id} to [${req.body.status || 'modified'}].`
+
+3. POST /api/chat (AI Assistant Proxy Log):
+   - Capture the 'X-Staff-Identity' header value.
+   - Console log the transaction cleanly in this format:
+     `[AUDIT] 🤖 Staff Identity [${staff}] requested Gemini diagnostic support for message: "${message.substring(0, 30)}..."`
+
+### 🔌 UNIFIED SERVER CORE CODE
+Please generate the complete, updated 'index.js' script incorporating these professional console audit layers into our running architecture:
+
+const express = require("express");
+const cors = require("cors");
+
+const app = express();
+app.use(cors({ origin: "*" }));
+app.use(express.json());
+
+// ---------- In-memory store ----------
+let patients = [];
+let nextId = 1;
+
+// ---------- Credits system ----------
+const TOTAL_CREDITS = 500;
+let creditsUsed = 0;
+const creditsState = () => ({
+  total: TOTAL_CREDITS,
+  used: creditsUsed,
+  remaining: TOTAL_CREDITS - creditsUsed,
+});
+
+// ---------- Triage logic ----------
+const triage = (symptoms = "") => {
+  const s = String(symptoms).toLowerCase();
+  if (/chest pain|unconscious|bleeding|stroke|breath|cardiac|seizure|severe|heart attack/.test(s)) return "RED";
+  if (/fever|fracture|vomit|pain|infection|dizziness|burn|head injury/.test(s)) return "YELLOW";
+  return "GREEN";
+};
+
+// ---------- Validation Helper ----------
+const requireFields = (body, fields) => {
+  const missing = fields.filter((f) => !body[f] || String(body[f]).trim() === "");
+  return missing.length ? `Missing required fields: ${missing.join(", ")}` : null;
+};
+
+// ---------- Routes with Identity Audits ----------
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, uptime: process.uptime(), time: new Date().toISOString() });
+});
+
+app.get("/api/credits", (_req, res) => res.json(creditsState()));
+
+app.get("/api/patients", (_req, res) => {
+  const order = { RED: 0, YELLOW: 1, GREEN: 2 };
+  const sorted = [...patients].sort((a, b) => {
+    if (a.status === "handled" && b.status !== "handled") return 1;
+    if (b.status === "handled" && a.status !== "handled") return -1;
+    return (order[a.priority] ?? 3) - (order[b.priority] ?? 3);
+  });
+  res.json(sorted);
+});
+
+app.post("/api/patients", (req, res) => {
+  const staff = req.headers["x-staff-identity"] || "Unauthenticated Session";
+  const err = requireFields(req.body, ["name", "room_no", "symptoms"]);
+  if (err) return res.status(400).json({ error: err });
+
+  if (creditsUsed >= TOTAL_CREDITS) {
+    return res.status(402).json({ error: "No credits remaining", credits: creditsState() });
+  }
+
+  const { name, room_no, bed_no, symptoms } = req.body;
+  const patient = {
+    id: nextId++,
+    name: String(name).trim(),
+    room_no: String(room_no).trim(),
+    bed_no: bed_no ? String(bed_no).trim() : "",
+    symptoms: String(symptoms).trim(),
+    priority: triage(symptoms),
+    status: "active",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  patients.push(patient);
+  creditsUsed += 1;
+
+  console.log(`[AUDIT] 🏨 Staff Identity [${staff}] successfully ADMITTED patient: ${name} to Room ${room_no}.`);
+  res.status(201).json({ ...patient, credits: creditsState() });
+});
+
+app.patch("/api/patients/:id", (req, res) => {
+  const staff = req.headers["x-staff-identity"] || "Unauthenticated Session";
+  const id = Number(req.params.id);
+  const p = patients.find((x) => x.id === id);
+  if (!p) return res.status(404).json({ error: "Patient not found" });
+
+  const allowed = ["name", "room_no", "bed_no", "symptoms", "status", "priority"];
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) p[key] = req.body[key];
+  }
+  if (req.body.symptoms !== undefined && req.body.priority === undefined) {
+    p.priority = triage(p.symptoms);
+  }
+  p.updated_at = new Date().toISOString();
+
+  console.log(`[AUDIT] ⚡ Staff Identity [${staff}] updated status for Patient ID #${id} to [${req.body.status || 'modified'}].`);
+  res.json(p);
+});
+
+app.delete("/api/patients/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const before = patients.length;
+  patients = patients.filter((x) => x.id !== id);
+  if (patients.length === before) return res.status(404).json({ error: "Patient not found" });
+  res.json({ deleted: true });
+});
+
+// ---------- AI Proxy Endpoint with Auditing ----------
+app.post("/api/chat", async (req, res) => {
+  try {
+    const staff = req.headers["x-staff-identity"] || "Unauthenticated Session";
+    const { message } = req.body || {};
+    if (!message) {
+      return res.status(400).json({ error: "Message content context is missing" });
+    }
+
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_API_KEY) {
+      return res.status(200).json({ 
+        reply: "⚠️ [AI Server Notice]: Backend chat gateway linked successfully, but GEMINI_API_KEY is missing." 
+      });
+    }
+
+    const systemInstruction = "You are a helpful assistant for an emergency room triage dashboard. Provide concise guidance. You are NOT a medical doctor.";
+    const geminiPayload = {
+      contents: [{ role: "user", parts: [{ text: `${systemInstruction}\n\nUser Question: ${message}` }] }]
+    };
+
+    console.log(`[AUDIT] 🤖 Staff Identity [${staff}] requested Gemini diagnostic support for message: "${message.substring(0, 30)}..."`);
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(geminiPayload)
+      }
+    );
+
+    if (!response.ok) throw new Error(`Gemini status error: ${response.status}`);
+
+    const data = await response.json();
+    const aiReply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Processing issue. Please try again.";
+
+    res.status(200).json({ reply: aiReply });
+
+  } catch (error) {
+    console.error("🚨 AI Chat Route Failure Intercepted:", error.message);
+    res.status(500).json({ error: "Internal AI connection fault.", reply: "AI offline." });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ Smart Patient Emergency Hub API live on :${PORT}`));

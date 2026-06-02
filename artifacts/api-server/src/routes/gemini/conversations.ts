@@ -107,6 +107,7 @@ router.get("/:id/messages", async (req, res) => {
 
 router.post("/:id/messages", async (req, res) => {
   const id = Number(req.params.id);
+  const staff = (req.headers["x-staff-identity"] as string) || "System Gateway";
 
   try {
     const { content } = req.body || {};
@@ -114,6 +115,7 @@ router.post("/:id/messages", async (req, res) => {
       res.status(400).json({ error: "content is required" });
       return;
     }
+    req.log.info(`[AUDIT] 🤖 Staff Identity [${staff}] requested Gemini diagnostic support for message: "${content.substring(0, 30)}..."`);
 
     const [conversation] = await db
       .select()

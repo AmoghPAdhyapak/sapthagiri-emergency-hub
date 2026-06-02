@@ -69,6 +69,7 @@ router.get("/patients", (_req, res) => {
 });
 
 router.post("/patients", (req, res) => {
+  const staff = (req.headers["x-staff-identity"] as string) || "System Gateway";
   const { name, room_no, bed_no, symptoms } = req.body || {};
   if (!name || !room_no || !symptoms) {
     res.status(400).json({ error: "name, room_no, symptoms required" });
@@ -85,10 +86,12 @@ router.post("/patients", (req, res) => {
     created_at: new Date().toISOString(),
   };
   patients.push(patient);
+  req.log.info(`[AUDIT] 🏨 Staff Identity [${staff}] successfully ADMITTED patient: ${name} to Room ${room_no}.`);
   res.status(201).json(patient);
 });
 
 router.patch("/patients/:id", (req, res) => {
+  const staff = (req.headers["x-staff-identity"] as string) || "System Gateway";
   const id = Number(req.params.id);
   const p = patients.find((x) => x.id === id);
   if (!p) {
@@ -96,6 +99,7 @@ router.patch("/patients/:id", (req, res) => {
     return;
   }
   Object.assign(p, req.body || {});
+  req.log.info(`[AUDIT] ⚡ Staff Identity [${staff}] updated status for Patient ID #${id} to [${req.body?.status || "modified"}].`);
   res.json(p);
 });
 
