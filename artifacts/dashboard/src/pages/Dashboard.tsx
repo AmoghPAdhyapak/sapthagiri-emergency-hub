@@ -100,11 +100,13 @@ function saveMedRecord(phone: string | undefined, record: MedicalRecord) {
 function Sidebar({
   activeView,
   onNavigate,
+  onOpenChat,
 }: {
   activeView: DashView;
   onNavigate: (v: DashView) => void;
+  onOpenChat: () => void;
 }) {
-  const navItems: { view: DashView; icon: React.ReactNode; label: string; accent?: string }[] = [
+  const navItems: { view: DashView; icon: React.ReactNode; label: string }[] = [
     { view: "dashboard", icon: <LayoutDashboard className="w-4 h-4" />, label: "Emergency Hub" },
     { view: "analysis",  icon: <Stethoscope className="w-4 h-4" />,    label: "Patient Analysis" },
     { view: "account",   icon: <User className="w-4 h-4" />,           label: "My Account" },
@@ -140,6 +142,19 @@ function Sidebar({
             {label}
           </button>
         ))}
+
+        {/* AI Assistant — opens the Gemini chat panel */}
+        <button
+          onClick={onOpenChat}
+          data-testid="nav-ai-assistant"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left
+            text-primary border border-primary/20 bg-primary/10 hover:bg-primary/20
+            shadow-[0_0_12px_hsl(180_70%_50%_/_0.15)] mt-1"
+        >
+          <Bot className="w-4 h-4 animate-pulse" />
+          <span>AI Assistant</span>
+          <span className="ml-auto flex h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
+        </button>
       </nav>
       <div className="px-4 mt-4 pt-4 border-t border-border">
         <div className="flex items-center gap-2">
@@ -696,7 +711,7 @@ export default function Dashboard() {
 
       {/* Body: Sidebar + Main */}
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar activeView={activeView} onNavigate={setActiveView} />
+        <Sidebar activeView={activeView} onNavigate={setActiveView} onOpenChat={() => setIsChatOpen(true)} />
         <main className="flex-1 overflow-auto">
           {activeView === "dashboard" && <PatientDashboardView />}
           {activeView === "analysis"  && <PatientAnalysisPanel />}
