@@ -9,6 +9,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Mail,
+  Loader2,
 } from "lucide-react";
 import logoUrl from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
@@ -35,26 +36,46 @@ import { Badge } from "@/components/ui/badge";
 const SUPPORT_EMAIL = "sapthagiri.healthsupport@gmail.com";
 const OTP_TTL = 120; // seconds
 
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+type Step = "phone" | "otp" | "profile";
+
+async function apiSendOtp(phone: string): Promise<void> {
+  const res = await fetch("/api/otp/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone: phone.replace(/\D/g, "") }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? "Failed to send OTP");
+  }
 }
 
-type Step = "phone" | "otp" | "profile";
+async function apiVerifyOtp(phone: string, otp: string): Promise<void> {
+  const res = await fetch("/api/otp/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone: phone.replace(/\D/g, ""), otp }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? "Verification failed");
+  }
+}
 
 export default function SignUpPage() {
   const [, setLocation] = useLocation();
 
-  // Step state
   const [step, setStep] = useState<Step>("phone");
 
   // Step 1 — phone
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [sending, setSending] = useState(false);
 
   // Step 2 — OTP
-  const [generatedOtp, setGeneratedOtp] = useState("");
   const [enteredOtp, setEnteredOtp] = useState("");
   const [otpError, setOtpError] = useState("");
+  const [verifying, setVerifying] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -87,7 +108,7 @@ export default function SignUpPage() {
     }, 1000);
   };
 
-  const handleSendOtp = (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleaned = phone.trim();
     if (!cleaned) {
@@ -99,35 +120,55 @@ export default function SignUpPage() {
       return;
     }
     setPhoneError("");
-    const otp = generateOtp();
-    setGeneratedOtp(otp);
-    setEnteredOtp("");
-    setOtpError("");
-    startTimer();
-    setStep("otp");
+    setSending(true);
+    try {
+      await apiSendOtp(cleaned);
+      setEnteredOtp("");
+      setOtpError("");
+      startTimer();
+      setStep("otp");
+    } catch (err) {
+      setPhoneError(err instanceof Error ? err.message : "Failed to send OTP");
+    } finally {
+      setSending(false);
+    }
   };
 
-  const handleResendOtp = () => {
-    const otp = generateOtp();
-    setGeneratedOtp(otp);
-    setEnteredOtp("");
-    setOtpError("");
-    startTimer();
+  const handleResendOtp = async () => {
+    setSending(true);
+    try {
+      await apiSendOtp(phone.trim());
+      setEnteredOtp("");
+      setOtpError("");
+      startTimer();
+    } catch (err) {
+      setOtpError(err instanceof Error ? err.message : "Failed to resend OTP");
+    } finally {
+      setSending(false);
+    }
   };
 
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (countdown === 0) {
       setOtpError("OTP has expired. Please request a new one.");
       return;
     }
-    if (enteredOtp.trim() !== generatedOtp) {
-      setOtpError("Incorrect OTP. Please check the code above and try again.");
+    if (!enteredOtp.trim()) {
+      setOtpError("Please enter the OTP.");
       return;
     }
-    setOtpError("");
-    if (timerRef.current) clearInterval(timerRef.current);
-    setStep("profile");
+    setVerifying(true);
+    try {
+      await apiVerifyOtp(phone.trim(), enteredOtp.trim());
+      setOtpError("");
+      if (timerRef.current) clearInterval(timerRef.current);
+      setStep("profile");
+    } catch (err) {
+      setOtpError(err instanceof Error ? err.message : "Verification failed");
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const handleCompleteRegistration = (e: React.FormEvent) => {
@@ -142,10 +183,7 @@ export default function SignUpPage() {
     }
     setProfileError("");
 
-    // Clear any stale medical record for this phone number → fresh start
     localStorage.removeItem(`sapthagiri_med_${phone.trim()}`);
-
-    // Persist account
     localStorage.setItem(
       "sapthagiri_user",
       JSON.stringify({
@@ -164,7 +202,6 @@ export default function SignUpPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 py-12 relative overflow-hidden">
-      {/* Background radial glow */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background pointer-events-none" />
 
       <div className="w-full max-w-md relative z-10">
@@ -185,34 +222,31 @@ export default function SignUpPage() {
           {["Phone", "Verify OTP", "Profile"].map((label, i) => (
             <div key={label} className="flex items-center gap-2">
               <div
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                  i < stepIndex
-                    ? "bg-primary/20 text-primary"
-                    : i === stepIndex
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                  i === stepIndex
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : i < stepIndex
+                    ? "bg-primary/20 text-primary border-primary/30"
+                    : "bg-muted/30 text-muted-foreground border-border"
                 }`}
               >
-                {i < stepIndex ? (
-                  <CheckCircle2 className="w-3 h-3" />
-                ) : (
-                  <span className="w-3 h-3 flex items-center justify-center font-bold text-[10px]">
-                    {i + 1}
-                  </span>
-                )}
+                {i < stepIndex ? <CheckCircle2 className="w-3 h-3" /> : <span>{i + 1}</span>}
                 {label}
               </div>
-              {i < 2 && <div className="w-4 h-px bg-border" />}
+              {i < 2 && (
+                <div className={`w-6 h-px ${i < stepIndex ? "bg-primary" : "bg-border"}`} />
+              )}
             </div>
           ))}
         </div>
 
-        {/* ── STEP 1: Phone Number ─────────────────────────── */}
+        {/* ── Step 1: Phone ── */}
         {step === "phone" && (
-          <Card className="border-primary/20 shadow-lg bg-card/80 backdrop-blur-sm">
+          <Card className="border-primary/20 shadow-[0_0_30px_hsl(180_70%_50%_/_0.1)] bg-card/80 backdrop-blur-sm glow-border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Phone className="w-5 h-5 text-primary" /> Enter Your Mobile Number
+                <Phone className="w-4 h-4 text-primary" />
+                Enter Your Mobile Number
               </CardTitle>
               <CardDescription>
                 We'll send a one-time verification code to your phone. Your mobile number is your primary medical ID.
@@ -221,10 +255,10 @@ export default function SignUpPage() {
             <CardContent>
               <form onSubmit={handleSendOtp} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="phone" className="flex items-center gap-2 font-semibold">
+                  <Label htmlFor="phone" className="flex items-center gap-2">
                     <Phone className="w-3.5 h-3.5 text-primary" />
-                    Mobile Number
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-primary border-primary/30 font-bold">
+                    Mobile Number{" "}
+                    <Badge className="text-[10px] py-0 px-1.5 bg-primary/10 text-primary border-primary/20">
                       PRIMARY ID
                     </Badge>
                   </Label>
@@ -234,30 +268,33 @@ export default function SignUpPage() {
                     placeholder="+91 98765 43210"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="bg-background/50 font-mono text-base h-11"
-                    data-testid="input-phone"
+                    className="bg-background/50 font-mono"
                     autoComplete="tel"
-                    autoFocus
+                    data-testid="input-phone"
                   />
-                  {phoneError && (
-                    <p className="text-xs text-destructive">{phoneError}</p>
-                  )}
                 </div>
-
-                <Button type="submit" className="w-full h-11" data-testid="button-send-otp">
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Send Verification Code
+                {phoneError && (
+                  <p className="text-sm text-destructive font-medium p-2 bg-destructive/10 border border-destructive/20 rounded-md">
+                    {phoneError}
+                  </p>
+                )}
+                <Button type="submit" className="w-full" disabled={sending} data-testid="button-send-otp">
+                  {sending ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending OTP…</>
+                  ) : (
+                    <><MessageSquare className="w-4 h-4 mr-2" /> Send Verification Code</>
+                  )}
                 </Button>
               </form>
             </CardContent>
-            <CardFooter className="flex flex-col gap-3 border-t border-border/50 pt-5">
-              <p className="text-sm text-muted-foreground text-center">
+            <CardFooter className="flex flex-col gap-1 border-t border-border/50 pt-4 pb-4 text-center">
+              <p className="text-sm text-muted-foreground">
                 Already registered?{" "}
                 <Link href="/login" className="text-primary hover:underline font-medium">
                   Login here
                 </Link>
               </p>
-              <p className="text-xs text-muted-foreground/60 text-center">
+              <p className="text-xs text-muted-foreground/50">
                 Support:{" "}
                 <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-primary transition-colors">
                   {SUPPORT_EMAIL}
@@ -267,152 +304,137 @@ export default function SignUpPage() {
           </Card>
         )}
 
-        {/* ── STEP 2: OTP Verification ─────────────────────── */}
+        {/* ── Step 2: OTP Verification ── */}
         {step === "otp" && (
-          <Card className="border-primary/20 shadow-lg bg-card/80 backdrop-blur-sm">
+          <Card className="border-primary/20 shadow-[0_0_30px_hsl(180_70%_50%_/_0.1)] bg-card/80 backdrop-blur-sm glow-border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-primary" /> Verify Mobile Number
+                <ShieldCheck className="w-4 h-4 text-primary" />
+                Verify Your Number
               </CardTitle>
               <CardDescription>
-                A 6-digit OTP has been sent to{" "}
-                <span className="text-foreground font-semibold font-mono">{phone}</span>
+                An OTP has been sent to <span className="font-mono text-foreground">{phone}</span> via SMS.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Simulated SMS bubble */}
-              <div className="bg-blue-500/8 border border-blue-500/20 rounded-xl p-4 relative">
-                <div className="flex items-start gap-3">
-                  <div className="bg-blue-500/20 p-1.5 rounded-lg shrink-0">
-                    <MessageSquare className="w-4 h-4 text-blue-400" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">
-                        SMS — Sapthagiri Healthcare
-                      </span>
-                      <span className="text-[10px] text-muted-foreground font-mono">just now</span>
-                    </div>
-                    <p className="text-sm text-foreground/90 leading-relaxed">
-                      Your Sapthagiri verification code is:{" "}
-                      <span className="font-black text-primary tracking-widest font-mono text-base">
-                        {generatedOtp}
-                      </span>
-                      . Valid for {Math.floor(countdown / 60)}:
-                      {String(countdown % 60).padStart(2, "0")} mins. Do not share this code.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* OTP input */}
+            <CardContent>
               <form onSubmit={handleVerifyOtp} className="space-y-4">
+                {/* Timer display */}
+                <div className={`flex items-center justify-between p-3 rounded-lg border text-sm font-mono ${
+                  countdown > 0
+                    ? "bg-primary/5 border-primary/20 text-primary"
+                    : "bg-destructive/10 border-destructive/20 text-destructive"
+                }`}>
+                  <span className="flex items-center gap-1.5 text-xs uppercase tracking-wider font-bold">
+                    {countdown > 0 ? (
+                      <><MessageSquare className="w-3 h-3" /> OTP sent to your phone</>
+                    ) : (
+                      <><RefreshCw className="w-3 h-3" /> OTP expired</>
+                    )}
+                  </span>
+                  <span className="text-base font-black">
+                    {countdown > 0
+                      ? `${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, "0")}`
+                      : "0:00"}
+                  </span>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="otp" className="font-semibold">Enter 6-Digit OTP</Label>
+                  <Label htmlFor="otp">Enter 6-digit OTP</Label>
                   <Input
                     id="otp"
                     type="text"
                     inputMode="numeric"
                     maxLength={6}
-                    placeholder="• • • • • •"
+                    placeholder="● ● ● ● ● ●"
                     value={enteredOtp}
                     onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ""))}
-                    className="bg-background/50 font-mono text-2xl tracking-[0.5em] text-center h-14 border-2 focus:border-primary"
-                    data-testid="input-otp"
-                    autoFocus
+                    className="bg-background/50 font-mono text-center text-2xl tracking-[1rem] h-14"
                     autoComplete="one-time-code"
+                    data-testid="input-otp"
                   />
-                  {countdown === 0 && (
-                    <p className="text-xs text-amber-400 flex items-center gap-1">
-                      OTP expired — please request a new one.
-                    </p>
-                  )}
-                  {otpError && (
-                    <p className="text-xs text-destructive">{otpError}</p>
-                  )}
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full h-11"
-                  disabled={enteredOtp.length < 6 || countdown === 0}
-                  data-testid="button-verify-otp"
-                >
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Verify & Continue
+                {otpError && (
+                  <p className="text-sm text-destructive font-medium p-2 bg-destructive/10 border border-destructive/20 rounded-md">
+                    {otpError}
+                  </p>
+                )}
+
+                <Button type="submit" className="w-full" disabled={verifying || countdown === 0} data-testid="button-verify-otp">
+                  {verifying ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Verifying…</>
+                  ) : (
+                    <><ShieldCheck className="w-4 h-4 mr-2" /> Verify OTP</>
+                  )}
                 </Button>
+
+                <div className="flex items-center justify-between">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setStep("phone")}
+                    className="text-muted-foreground"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" /> Change Number
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={countdown > 0 || sending}
+                    onClick={handleResendOtp}
+                    className="text-muted-foreground"
+                    data-testid="button-resend-otp"
+                  >
+                    {sending ? (
+                      <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> Sending…</>
+                    ) : (
+                      <><RefreshCw className="w-3 h-3 mr-1.5" /> Resend OTP</>
+                    )}
+                  </Button>
+                </div>
               </form>
             </CardContent>
-            <CardFooter className="flex flex-col gap-3 border-t border-border/50 pt-5">
-              <div className="flex items-center gap-3 w-full justify-between">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground"
-                  onClick={() => setStep("phone")}
-                  data-testid="button-back-to-phone"
-                >
-                  <ChevronLeft className="w-4 h-4 mr-1" />
-                  Change number
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-primary"
-                  onClick={handleResendOtp}
-                  disabled={countdown > 90}
-                  data-testid="button-resend-otp"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                  Resend OTP
-                </Button>
-              </div>
-            </CardFooter>
           </Card>
         )}
 
-        {/* ── STEP 3: Complete Profile ──────────────────────── */}
+        {/* ── Step 3: Profile ── */}
         {step === "profile" && (
-          <Card className="border-primary/20 shadow-lg bg-card/80 backdrop-blur-sm">
+          <Card className="border-primary/20 shadow-[0_0_30px_hsl(180_70%_50%_/_0.1)] bg-card/80 backdrop-blur-sm glow-border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-primary" /> Complete Patient Profile
+                <UserPlus className="w-4 h-4 text-primary" />
+                Complete Your Profile
               </CardTitle>
               <CardDescription>
-                <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Mobile {phone} verified.
-                </span>{" "}
-                Fill in your healthcare details to complete registration.
+                Set up your patient account. You can update this later in your dashboard.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleCompleteRegistration} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="font-semibold">
-                    Full Name <span className="text-destructive">*</span>
-                  </Label>
+                  <Label htmlFor="name">Full Name *</Label>
                   <Input
                     id="name"
-                    placeholder="e.g. Ramesh Kumar"
+                    placeholder="Dr. / Mr. / Ms. Full Name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="bg-background/50"
                     data-testid="input-name"
-                    autoFocus
+                    autoComplete="name"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5" />
-                    Email Address{" "}
-                    <span className="text-muted-foreground text-xs font-normal">(optional — backup)</span>
+                  <Label htmlFor="email">
+                    <Mail className="w-3.5 h-3.5 inline mr-1 text-primary" />
+                    Email (Optional)
                   </Label>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="patient@example.com"
+                    placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="bg-background/50"
@@ -423,58 +445,49 @@ export default function SignUpPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="roomNumber">Room / Ward</Label>
+                    <Label htmlFor="room">Room / Ward</Label>
                     <Input
-                      id="roomNumber"
-                      placeholder="ER-3 / Ward-B"
+                      id="room"
+                      placeholder="ER-1"
                       value={roomNumber}
                       onChange={(e) => setRoomNumber(e.target.value)}
-                      className="bg-background/50 font-mono uppercase"
+                      className="bg-background/50 uppercase font-mono"
                       data-testid="input-room"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="role">Role</Label>
-                    <Select value={role} onValueChange={setRole}>
-                      <SelectTrigger className="bg-background/50" data-testid="select-role">
+                    <Select onValueChange={setRole} defaultValue={role}>
+                      <SelectTrigger id="role" className="bg-background/50">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Patient">Patient</SelectItem>
-                        <SelectItem value="Doctor">Doctor</SelectItem>
-                        <SelectItem value="Nurse">Nurse</SelectItem>
-                        <SelectItem value="Admin">Administrator</SelectItem>
+                        <SelectItem value="Staff">Staff</SelectItem>
+                        <SelectItem value="Visitor">Visitor</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="symptoms">
-                    Presenting Symptoms / Health Notes{" "}
-                    <span className="text-muted-foreground text-xs font-normal">(optional)</span>
-                  </Label>
+                  <Label htmlFor="symptoms">Current Symptoms (Optional)</Label>
                   <Textarea
                     id="symptoms"
-                    placeholder="Describe current symptoms, known conditions, or allergies..."
+                    placeholder="Describe any current symptoms or reason for visit..."
                     value={symptoms}
                     onChange={(e) => setSymptoms(e.target.value)}
-                    className="min-h-[72px] resize-none bg-background/50"
+                    className="bg-background/50 min-h-[80px] resize-none"
                     data-testid="input-symptoms"
                   />
-                  <p className="text-xs text-muted-foreground/60">
-                    Patient-reported only. Clinical records require doctor verification.
-                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="font-semibold">
-                    Password <span className="text-destructive">*</span>
-                  </Label>
+                  <Label htmlFor="password">Password *</Label>
                   <Input
                     id="password"
                     type="password"
-                    placeholder="••••••••"
+                    placeholder="Choose a strong password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="bg-background/50"
@@ -484,26 +497,20 @@ export default function SignUpPage() {
                 </div>
 
                 {profileError && (
-                  <div className="text-sm text-destructive font-medium p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                  <p className="text-sm text-destructive font-medium p-2 bg-destructive/10 border border-destructive/20 rounded-md">
                     {profileError}
-                  </div>
+                  </p>
                 )}
 
-                <Button type="submit" className="w-full h-11 mt-2" data-testid="button-signup">
+                <Button type="submit" className="w-full" data-testid="button-complete-registration">
                   <UserPlus className="w-4 h-4 mr-2" />
-                  Create Patient Account
+                  Complete Registration
                 </Button>
               </form>
             </CardContent>
-            <CardFooter className="flex flex-col gap-2 border-t border-border/50 pt-5">
-              <p className="text-sm text-muted-foreground text-center">
-                Already registered?{" "}
-                <Link href="/login" className="text-primary hover:underline font-medium">
-                  Login here
-                </Link>
-              </p>
-              <p className="text-xs text-muted-foreground/60 text-center">
-                Need help?{" "}
+            <CardFooter className="flex justify-center border-t border-border/50 pt-4 pb-4">
+              <p className="text-xs text-muted-foreground/50">
+                Support:{" "}
                 <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-primary transition-colors">
                   {SUPPORT_EMAIL}
                 </a>
