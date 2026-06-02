@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { HeartPulse, Bot, Activity, Brain, Users, ShieldCheck, Phone } from "lucide-react";
+import { HeartPulse, Bot, Activity, Brain, Users, ShieldCheck, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
