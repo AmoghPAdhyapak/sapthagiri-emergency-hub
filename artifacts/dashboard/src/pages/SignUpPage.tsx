@@ -38,16 +38,20 @@ const OTP_TTL = 120; // seconds
 
 type Step = "phone" | "otp" | "profile";
 
-async function apiSendOtp(phone: string): Promise<void> {
+interface SendOtpResult {
+  sms: boolean;
+  demo_otp?: string;
+}
+
+async function apiSendOtp(phone: string): Promise<SendOtpResult> {
   const res = await fetch("/api/otp/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone: phone.replace(/\D/g, "") }),
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error ?? "Failed to send OTP");
-  }
+  const body = await res.json().catch(() => ({})) as { error?: string; sms?: boolean; demo_otp?: string };
+  if (!res.ok) throw new Error(body.error ?? "Failed to send OTP");
+  return { sms: body.sms ?? false, demo_otp: body.demo_otp };
 }
 
 async function apiVerifyOtp(phone: string, otp: string): Promise<void> {
@@ -77,6 +81,7 @@ export default function SignUpPage() {
   const [otpError, setOtpError] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [demoOtp, setDemoOtp] = useState<string | undefined>(undefined);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Step 3 — profile
@@ -122,7 +127,8 @@ export default function SignUpPage() {
     setPhoneError("");
     setSending(true);
     try {
-      await apiSendOtp(cleaned);
+      const result = await apiSendOtp(cleaned);
+      setDemoOtp(result.demo_otp);
       setEnteredOtp("");
       setOtpError("");
       startTimer();
@@ -137,7 +143,8 @@ export default function SignUpPage() {
   const handleResendOtp = async () => {
     setSending(true);
     try {
-      await apiSendOtp(phone.trim());
+      const result = await apiSendOtp(phone.trim());
+      setDemoOtp(result.demo_otp);
       setEnteredOtp("");
       setOtpError("");
       startTimer();
@@ -318,6 +325,24 @@ export default function SignUpPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleVerifyOtp} className="space-y-4">
+                {/* Demo OTP banner — shown when SMS provider isn't funded */}
+                {demoOtp && (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1.5 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3 h-3" /> Demo Mode — SMS not yet activated
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-amber-300/70">Your OTP code:</span>
+                      <span className="font-mono text-2xl font-black tracking-[0.4rem] text-amber-300">
+                        {demoOtp}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-amber-400/50 mt-1">
+                      Fund your Fast2SMS account to switch to real SMS delivery.
+                    </p>
+                  </div>
+                )}
+
                 {/* Timer display */}
                 <div className={`flex items-center justify-between p-3 rounded-lg border text-sm font-mono ${
                   countdown > 0
@@ -326,7 +351,9 @@ export default function SignUpPage() {
                 }`}>
                   <span className="flex items-center gap-1.5 text-xs uppercase tracking-wider font-bold">
                     {countdown > 0 ? (
-                      <><MessageSquare className="w-3 h-3" /> OTP sent to your phone</>
+                      demoOtp
+                        ? <><MessageSquare className="w-3 h-3" /> Use the code above</>
+                        : <><MessageSquare className="w-3 h-3" /> OTP sent via SMS</>
                     ) : (
                       <><RefreshCw className="w-3 h-3" /> OTP expired</>
                     )}

@@ -17,29 +17,33 @@ function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-async function sendSms(phone: string, otp: string): Promise<void> {
+/** Returns true if SMS was delivered, false if demo-mode fallback was used */
+async function trySendSms(phone: string, otp: string): Promise<boolean> {
   const apiKey = process.env.FAST2SMS_API_KEY;
 
   if (!apiKey) {
-    // Dev fallback: log OTP to server console (visible in Replit workflow logs)
-    console.log(
-      `\n${"─".repeat(50)}\n[OTP-DEV] Phone: +91${phone}  →  OTP: ${otp}\nAdd FAST2SMS_API_KEY to env for real SMS delivery.\n${"─".repeat(50)}\n`
-    );
-    return;
+    console.log(`\n${"─".repeat(50)}\n[OTP-DEMO] +91${phone} → ${otp}\n${"─".repeat(50)}\n`);
+    return false;
   }
 
   const url = new URL("https://www.fast2sms.com/dev/bulkV2");
   url.searchParams.set("authorization", apiKey);
-  url.searchParams.set("variables_values", otp);
-  url.searchParams.set("route", "otp");
+  url.searchParams.set("message", `Your Sapthagiri NPS University OTP is: ${otp}. Valid for 2 minutes. Do not share.`);
+  url.searchParams.set("language", "english");
+  url.searchParams.set("route", "q");
   url.searchParams.set("numbers", phone);
 
-  const res = await fetch(url.toString());
-  const data = (await res.json()) as { return: boolean; message?: string };
-
-  if (!data.return) {
-    throw new Error(data.message ?? "Fast2SMS delivery failed");
+  try {
+    const res = await fetch(url.toString());
+    const data = (await res.json()) as { return: boolean; message?: string };
+    if (data.return) return true;
+    // SMS provider returned an error — fall through to demo mode
+    console.log(`[OTP-DEMO] SMS failed (${data.message}). Falling back to demo mode. +91${phone} → ${otp}`);
+  } catch {
+    console.log(`[OTP-DEMO] SMS fetch error. Falling back. +91${phone} → ${otp}`);
   }
+
+  return false;
 }
 
 // POST /api/otp/send  { phone: "7348913860" }
@@ -54,13 +58,12 @@ router.post("/otp/send", async (req, res) => {
   const otp = generateOtp();
   otpStore.set(phone, { otp, expiry: Date.now() + OTP_TTL_MS, attempts: 0 });
 
-  try {
-    await sendSms(phone, otp);
-    res.json({ success: true });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    req.log?.error({ err }, "OTP send failed");
-    res.status(500).json({ error: `SMS failed: ${msg}` });
+  const smsSent = await trySendSms(phone, otp);
+  if (smsSent) {
+    res.json({ success: true, sms: true });
+  } else {
+    // Demo mode: return OTP in response so frontend can display it
+    res.json({ success: true, sms: false, demo_otp: otp });
   }
 });
 
