@@ -57,28 +57,59 @@ export default function LandingPage() {
           🔴 LIVE Emergency System
         </div>
 
-        <h1 className="text-5xl md:text-7xl font-black tracking-tight max-w-4xl leading-tight mt-12 mb-6">
-          Advanced <span className="text-primary">Emergency</span> Care
+        <h1 className="relative text-6xl md:text-8xl font-black tracking-tight max-w-4xl leading-[1.05] mt-14 mb-6 z-10">
+          Advanced{" "}
+          <span
+            className="text-primary"
+            style={{ textShadow: "0 0 40px hsl(180 70% 50% / 0.4)" }}
+          >
+            Emergency
+          </span>
+          <br />Care
         </h1>
-        <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mb-10">
-          AI-powered triage. Real-time patient monitoring. Critical care support.
+        <p className="relative text-xl md:text-2xl text-muted-foreground max-w-xl mb-4 z-10 leading-relaxed">
+          AI-powered triage. Real-time patient monitoring.
+          <br className="hidden md:inline" /> Critical care support.
         </p>
 
-        <div className="flex flex-col sm:flex-row items-center gap-4 mb-16">
-          <Button asChild size="lg" className="text-lg px-8 h-14" data-testid="hero-dashboard-button">
+        {/* Glassmorphism stat pill */}
+        <div className="relative z-10 mb-10 flex items-center gap-2 glass-panel px-5 py-2.5 rounded-full border border-primary/20 text-xs font-semibold text-primary uppercase tracking-widest">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+          Gemini AI · Doctor-Verified Records · Live Monitoring
+        </div>
+
+        <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4 mb-16">
+          <Button
+            asChild
+            size="lg"
+            className="text-base px-10 h-13 font-bold shadow-[0_0_25px_hsl(180_70%_50%_/_0.35)] hover:shadow-[0_0_35px_hsl(180_70%_50%_/_0.5)] transition-shadow"
+            data-testid="hero-dashboard-button"
+          >
             <Link href="/login">Open Emergency Dashboard</Link>
           </Button>
-          <Button variant="outline" size="lg" className="text-lg px-8 h-14" onClick={scrollToAbout} data-testid="hero-learn-more-button">
+          <Button
+            variant="outline"
+            size="lg"
+            className="text-base px-10 h-13 border-border/60 hover:border-primary/50 hover:text-primary transition-colors"
+            onClick={scrollToAbout}
+            data-testid="hero-learn-more-button"
+          >
             Learn More
           </Button>
         </div>
 
-        <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground font-medium uppercase tracking-wider flex-wrap">
-          <span className="flex items-center gap-2"><Users className="w-4 h-4 text-primary" /> 1,000+ Patients Treated</span>
-          <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-border" />
-          <span className="flex items-center gap-2"><Bot className="w-4 h-4 text-primary" /> 24/7 AI Triage</span>
-          <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-border" />
-          <span className="flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> &lt; 3min Response Time</span>
+        <div className="relative z-10 flex items-center justify-center gap-8 text-xs text-muted-foreground font-medium uppercase tracking-wider flex-wrap">
+          <span className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-primary" /> 1,000+ Patients Treated
+          </span>
+          <span className="hidden sm:block w-px h-4 bg-border" />
+          <span className="flex items-center gap-2">
+            <Bot className="w-4 h-4 text-primary" /> 24/7 AI Triage
+          </span>
+          <span className="hidden sm:block w-px h-4 bg-border" />
+          <span className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary" /> &lt; 3min Response Time
+          </span>
         </div>
       </section>
 
