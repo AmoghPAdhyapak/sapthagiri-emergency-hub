@@ -1,4 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useListGeminiConversations,
+  useCreateGeminiConversation,
+  useDeleteGeminiConversation,
+  useGetGeminiConversation,
+  getListGeminiConversationsQueryKey,
+  getGetGeminiConversationQueryKey,
+} from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { StatsBar } from "@/components/StatsBar";
 import { PatientList } from "@/components/PatientList";
@@ -25,6 +34,9 @@ import {
   CheckCircle2,
   X,
   AlertOctagon,
+  Send,
+  MessageSquare,
+  Loader2,
 } from "lucide-react";
 import { AiChatPanel } from "@/components/AiChatPanel";
 import { DoctorVerificationModal } from "@/components/DoctorVerificationModal";
@@ -38,7 +50,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import defaultDoctors from "@/data/doctors.json";
 import logoUrl from "@/assets/logo.png";
 
-type DashView = "dashboard" | "analysis" | "account" | "dean";
+type DashView = "dashboard" | "analysis" | "ai" | "account" | "dean";
 
 interface UserData {
   name: string;
@@ -143,15 +155,17 @@ function Sidebar({
           </button>
         ))}
 
-        {/* AI Assistant — opens the Gemini chat panel */}
+        {/* AI Assistant — full-page Gemini chat */}
         <button
-          onClick={onOpenChat}
+          onClick={() => onNavigate("ai")}
           data-testid="nav-ai-assistant"
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left
-            text-primary border border-primary/20 bg-primary/10 hover:bg-primary/20
-            shadow-[0_0_12px_hsl(180_70%_50%_/_0.15)] mt-1"
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left mt-1 ${
+            activeView === "ai"
+              ? "bg-primary/15 text-primary border border-primary/20"
+              : "text-primary border border-primary/20 bg-primary/10 hover:bg-primary/20 shadow-[0_0_12px_hsl(180_70%_50%_/_0.15)]"
+          }`}
         >
-          <Bot className="w-4 h-4 animate-pulse" />
+          <Bot className={`w-4 h-4 ${activeView !== "ai" ? "animate-pulse" : ""}`} />
           <span>AI Assistant</span>
           <span className="ml-auto flex h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
         </button>
@@ -635,6 +649,233 @@ function PatientDashboardView() {
   );
 }
 
+// ── AI Full Page ─────────────────────────────────────────────────────────────
+function AiFullPage() {
+  const queryClient = useQueryClient();
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [inputValue, setInputValue] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
+  const [localMessages, setLocalMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { data: conversations, isLoading: loadingConvs } = useListGeminiConversations();
+  const createConversation = useCreateGeminiConversation();
+  const deleteConversation = useDeleteGeminiConversation();
+  const { data: activeConversation, isLoading: loadingMsgs } = useGetGeminiConversation(
+    activeConversationId as number,
+    { query: { enabled: !!activeConversationId, queryKey: getGetGeminiConversationQueryKey(activeConversationId as number) } }
+  );
+
+  useEffect(() => {
+    if (activeConversation) setLocalMessages(activeConversation.messages.map(m => ({ role: m.role, content: m.content })));
+    else setLocalMessages([]);
+  }, [activeConversation]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [localMessages, streamingContent]);
+
+  const handleNewChat = () => { setActiveConversationId(null); setLocalMessages([]); setStreamingContent(""); };
+
+  const handleSend = async () => {
+    if (!inputValue.trim() || isStreaming) return;
+    const msg = inputValue; setInputValue("");
+    setLocalMessages(prev => [...prev, { role: "user", content: msg }]);
+    setIsStreaming(true); setStreamingContent("");
+    let convId = activeConversationId;
+    if (!convId) {
+      try {
+        const newConv = await createConversation.mutateAsync({ data: { title: msg.slice(0, 50) } });
+        convId = newConv.id; setActiveConversationId(newConv.id);
+        queryClient.invalidateQueries({ queryKey: getListGeminiConversationsQueryKey() });
+      } catch { setIsStreaming(false); return; }
+    }
+    try {
+      const res = await fetch(`/api/gemini/conversations/${convId}/messages`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: msg }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = "";
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n"); buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const json = JSON.parse(line.slice(6));
+            if (json.content) setStreamingContent(prev => prev + json.content);
+            if (json.done) queryClient.invalidateQueries({ queryKey: getGetGeminiConversationQueryKey(convId as number) });
+          }
+        }
+      }
+    } catch { /* silent */ } finally { setIsStreaming(false); }
+  };
+
+  const inChat = activeConversationId || localMessages.length > 0;
+
+  return (
+    <div className="h-full flex">
+      {/* Conversation sidebar */}
+      <div className="w-56 shrink-0 border-r border-border bg-card flex flex-col">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bot className="w-4 h-4 text-primary animate-pulse" />
+            <span className="text-xs font-black uppercase tracking-wider text-primary">AI Health Assistant</span>
+          </div>
+        </div>
+        <div className="px-3 py-2 border-b border-border/50">
+          <button
+            onClick={handleNewChat}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors"
+            data-testid="button-new-chat"
+          >
+            <Plus className="w-3.5 h-3.5" /> New Consultation
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1">Recent Consults</p>
+          {loadingConvs ? (
+            <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
+          ) : conversations?.length === 0 ? (
+            <p className="text-xs text-muted-foreground/50 px-2 py-2 text-center font-mono">No consults yet</p>
+          ) : conversations?.map(conv => (
+            <button
+              key={conv.id}
+              onClick={() => setActiveConversationId(conv.id)}
+              className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-md text-xs transition-colors ${
+                activeConversationId === conv.id ? "bg-primary/15 text-primary border border-primary/20" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{conv.title}</span>
+            </button>
+          ))}
+        </div>
+        <div className="px-4 py-3 border-t border-border">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] font-mono text-emerald-500 uppercase">Gemini 2.5 Flash</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Chat area */}
+      <div className="flex-1 flex flex-col bg-[#0a0c10] overflow-hidden">
+        {/* Top bar */}
+        <div className="px-6 py-3 border-b border-border bg-[#161b22] flex items-center gap-3 shrink-0">
+          <div className="bg-primary/20 p-1.5 rounded-md">
+            <Bot className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-black uppercase tracking-wider text-primary">Sapthagiri AI Healthcare Assistant</p>
+            <p className="text-[10px] font-mono text-muted-foreground uppercase">
+              {isStreaming ? "⚡ Live Output — Gemini 2.5 Flash" : "Powered by Google Gemini · Healthcare AI"}
+            </p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${isStreaming ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/40"}`} />
+            <span className="text-[10px] font-mono text-muted-foreground uppercase">{isStreaming ? "Responding…" : "Ready"}</span>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+          {!inChat && (
+            <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
+              <div className="relative mb-6">
+                <span className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                <div className="relative w-16 h-16 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
+                  <Bot className="w-8 h-8 text-primary" />
+                </div>
+              </div>
+              <h2 className="text-xl font-black text-foreground mb-2">AI Healthcare Assistant</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Powered by Gemini 2.5 Flash. Ask about triage protocols, symptoms, medication guidance, or emergency care.
+              </p>
+              <div className="grid grid-cols-1 gap-2 w-full">
+                {[
+                  "What are the RED triage criteria for chest pain?",
+                  "Patient has SpO₂ 88% and respiratory distress — guidance?",
+                  "First aid for suspected cardiac arrest",
+                  "Triage a patient with severe allergic reaction",
+                ].map(prompt => (
+                  <button
+                    key={prompt}
+                    onClick={() => { setInputValue(prompt); }}
+                    className="text-left px-4 py-2.5 rounded-lg border border-border hover:border-primary/40 hover:bg-primary/5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {inChat && (
+            <>
+              <div className="text-center">
+                <span className="text-[10px] uppercase font-mono text-muted-foreground border border-border/50 rounded px-2 py-1 bg-muted/20">
+                  AI-assisted healthcare guidance · Not a substitute for clinical judgment
+                </span>
+              </div>
+              {loadingMsgs && !localMessages.length ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+              ) : localMessages.map((msg, i) => (
+                <div key={i} className={`flex flex-col max-w-[75%] ${msg.role === "user" ? "ml-auto items-end" : "mr-auto items-start"}`}>
+                  <div className={`px-4 py-3 rounded-xl text-sm leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-slate-700 text-slate-100 rounded-tr-sm"
+                      : "bg-primary/15 text-foreground border border-primary/20 rounded-tl-sm"
+                  }`}>
+                    {msg.content}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground font-mono mt-1">
+                    {msg.role === "user" ? "You" : "Gemini AI"}
+                  </span>
+                </div>
+              ))}
+              {isStreaming && (
+                <div className="flex flex-col max-w-[75%] mr-auto items-start">
+                  <div className="px-4 py-3 rounded-xl text-sm leading-relaxed bg-primary/15 text-foreground border border-primary/20 rounded-tl-sm">
+                    {streamingContent || <Loader2 className="w-4 h-4 animate-spin inline" />}
+                    <span className="inline-block w-1.5 h-3 ml-1 bg-primary animate-pulse align-middle" />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground font-mono mt-1">Gemini AI</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="p-4 border-t border-border bg-[#161b22] shrink-0">
+          <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex gap-3">
+            <Input
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              placeholder="Ask about triage, symptoms, medications, emergency protocols…"
+              className="flex-1 bg-[#0a0c10] border-border text-sm focus-visible:ring-primary/50 h-11"
+              disabled={isStreaming}
+              data-testid="input-chat-message"
+            />
+            <Button
+              type="submit"
+              disabled={!inputValue.trim() || isStreaming}
+              className="h-11 px-5 bg-primary hover:bg-primary/90 font-bold"
+              data-testid="button-send-message"
+            >
+              {isStreaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </Button>
+          </form>
+          <p className="text-[10px] text-muted-foreground/40 text-center mt-2 font-mono uppercase">
+            AI guidance only — always defer to qualified medical personnel
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Root Dashboard Page ───────────────────────────────────────────────────────
 export default function Dashboard() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -715,6 +956,7 @@ export default function Dashboard() {
         <main className="flex-1 overflow-auto">
           {activeView === "dashboard" && <PatientDashboardView />}
           {activeView === "analysis"  && <PatientAnalysisPanel />}
+          {activeView === "ai"        && <AiFullPage />}
           {activeView === "account"   && <AccountPanel user={user} />}
           {activeView === "dean"      && <DeanPanel />}
         </main>
