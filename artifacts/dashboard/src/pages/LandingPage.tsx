@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { HeartPulse, Bot, Activity, Brain, Users, ShieldCheck } from "lucide-react";
+import { HeartPulse, Bot, Activity, Brain, Users, ShieldCheck, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -23,31 +23,31 @@ export default function LandingPage() {
         </div>
         <div className="flex items-center gap-4">
           <Button asChild variant="ghost" className="hidden md:inline-flex" data-testid="nav-signup-button">
-            <Link href="/signup">Sign Up</Link>
+            <Link href="/signup">Patient Registration</Link>
           </Button>
           <Button asChild data-testid="nav-login-button" className="glow-border">
-            <Link href="/login">Emergency Login</Link>
+            <Link href="/login">Staff Login</Link>
           </Button>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section 
+      <section
         className="relative min-h-[90vh] flex flex-col items-center justify-center px-6 py-20 text-center overflow-hidden"
         style={{ background: 'radial-gradient(ellipse at 20% 50%, hsl(180 80% 8%) 0%, hsl(220 15% 4%) 60%)' }}
       >
-        <div className="absolute top-10 flex items-center gap-2 bg-red-500/10 text-red-500 border border-red-500/20 px-4 py-1.5 rounded-full text-sm font-semibold tracking-wider animate-pulse">
+        <div className="absolute top-10 flex items-center gap-2 bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-1.5 rounded-full text-sm font-semibold tracking-wider animate-pulse">
           <span className="w-2 h-2 rounded-full bg-red-500" />
           🔴 LIVE Emergency System
         </div>
-        
+
         <h1 className="text-5xl md:text-7xl font-black tracking-tight max-w-4xl leading-tight mt-12 mb-6">
-          Advanced <span className="text-primary glow-text">Emergency</span> Care
+          Advanced <span className="text-primary">Emergency</span> Care
         </h1>
         <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mb-10">
-          AI-powered triage. Real-time monitoring. Student-ready care.
+          AI-powered triage. Real-time patient monitoring. Critical care support.
         </p>
-        
+
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-16">
           <Button asChild size="lg" className="text-lg px-8 h-14" data-testid="hero-dashboard-button">
             <Link href="/login">Open Emergency Dashboard</Link>
@@ -56,9 +56,9 @@ export default function LandingPage() {
             Learn More
           </Button>
         </div>
-        
+
         <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground font-medium uppercase tracking-wider flex-wrap">
-          <span className="flex items-center gap-2"><Users className="w-4 h-4 text-primary" /> 500+ Students Served</span>
+          <span className="flex items-center gap-2"><Users className="w-4 h-4 text-primary" /> 1,000+ Patients Treated</span>
           <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-border" />
           <span className="flex items-center gap-2"><Bot className="w-4 h-4 text-primary" /> 24/7 AI Triage</span>
           <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-border" />
@@ -72,35 +72,35 @@ export default function LandingPage() {
           <div>
             <h2 className="text-3xl font-bold mb-6 text-foreground">About Sapthagiri Healthcare</h2>
             <p className="text-lg text-muted-foreground mb-6">
-              Our commitment to student wellness drives our innovation. Through our partnership with leading medical faculty, we've developed an AI-powered emergency response system that prioritizes rapid, accurate care when every second counts.
+              Sapthagiri Healthcare & Emergency Care is a modern AI-assisted patient management platform built for rapid emergency response. Our system integrates real-time triage, intelligent diagnostics, and critical care monitoring to deliver hospital-grade emergency support.
             </p>
             <p className="text-lg text-muted-foreground">
-              Sapthagiri Student Healthcare System provides an unparalleled safety net, combining human expertise with cutting-edge artificial intelligence to ensure our community is always protected.
+              Through partnership with certified medical professionals, we provide an unparalleled emergency safety net — combining clinical expertise with cutting-edge artificial intelligence to ensure every patient receives timely, accurate care.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Card className="bg-background border-border/50">
               <CardContent className="p-6 text-center">
                 <div className="text-3xl font-black text-primary mb-2">2,400+</div>
-                <div className="text-sm font-medium text-muted-foreground uppercase">Students</div>
+                <div className="text-sm font-medium text-muted-foreground uppercase">Patients Served</div>
               </CardContent>
             </Card>
             <Card className="bg-background border-border/50">
               <CardContent className="p-6 text-center">
                 <div className="text-3xl font-black text-primary mb-2">98.7%</div>
-                <div className="text-sm font-medium text-muted-foreground uppercase">Satisfaction</div>
+                <div className="text-sm font-medium text-muted-foreground uppercase">Care Satisfaction</div>
               </CardContent>
             </Card>
             <Card className="bg-background border-border/50">
               <CardContent className="p-6 text-center">
                 <div className="text-3xl font-black text-primary mb-2">&lt; 3min</div>
-                <div className="text-sm font-medium text-muted-foreground uppercase">Response</div>
+                <div className="text-sm font-medium text-muted-foreground uppercase">Triage Response</div>
               </CardContent>
             </Card>
             <Card className="bg-background border-border/50">
               <CardContent className="p-6 text-center">
                 <div className="text-3xl font-black text-primary mb-2">24/7</div>
-                <div className="text-sm font-medium text-muted-foreground uppercase">AI Support</div>
+                <div className="text-sm font-medium text-muted-foreground uppercase">AI Monitoring</div>
               </CardContent>
             </Card>
           </div>
@@ -110,27 +110,27 @@ export default function LandingPage() {
       {/* Emergency Services */}
       <section className="py-24 px-6 bg-background">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold mb-12 text-center text-foreground">Core Services</h2>
+          <h2 className="text-3xl font-bold mb-12 text-center text-foreground">Core Emergency Services</h2>
           <div className="grid md:grid-cols-3 gap-6">
             <Card className="border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition-colors">
               <CardContent className="p-8">
                 <Activity className="w-12 h-12 text-red-500 mb-6" />
                 <h3 className="text-xl font-bold text-foreground mb-3">Emergency Triage</h3>
-                <p className="text-muted-foreground">Instant severity classification and routing for critical cases, ensuring the most urgent patients are seen first.</p>
+                <p className="text-muted-foreground">Instant severity classification — RED, YELLOW, GREEN — ensuring the most critical patients receive immediate intervention.</p>
               </CardContent>
             </Card>
             <Card className="border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors glow-border">
               <CardContent className="p-8">
                 <Brain className="w-12 h-12 text-primary mb-6" />
                 <h3 className="text-xl font-bold text-foreground mb-3">AI Diagnostics</h3>
-                <p className="text-muted-foreground">Advanced symptom analysis powered by Google Gemini, providing rapid preliminary assessments to aid medical staff.</p>
+                <p className="text-muted-foreground">Advanced symptom analysis powered by Google Gemini, delivering rapid preliminary clinical assessments to support medical staff decisions.</p>
               </CardContent>
             </Card>
             <Card className="border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 transition-colors">
               <CardContent className="p-8">
                 <ShieldCheck className="w-12 h-12 text-blue-500 mb-6" />
                 <h3 className="text-xl font-bold text-foreground mb-3">24/7 Monitoring</h3>
-                <p className="text-muted-foreground">Continuous vital tracking and automated alerting system that never sleeps, keeping a watchful eye on patient stability.</p>
+                <p className="text-muted-foreground">Continuous vital tracking and automated critical alerts — uninterrupted patient status surveillance across all wards.</p>
               </CardContent>
             </Card>
           </div>
@@ -157,7 +157,7 @@ export default function LandingPage() {
                     <Users className="w-4 h-4 text-muted-foreground" />
                   </div>
                   <div className="bg-secondary rounded-2xl rounded-tl-none px-4 py-2 text-sm text-foreground">
-                    I'm feeling a sharp pain in my lower right abdomen that started 2 hours ago.
+                    Patient presenting with sharp pain in lower right abdomen, onset 2 hours ago.
                   </div>
                 </div>
                 <div className="flex gap-3">
@@ -165,23 +165,23 @@ export default function LandingPage() {
                     <Bot className="w-4 h-4 text-primary" />
                   </div>
                   <div className="bg-primary/10 border border-primary/20 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-foreground">
-                    <p className="font-semibold text-primary mb-1">Priority Alert</p>
-                    <p>Sharp pain in the lower right abdomen can be a sign of appendicitis, a medical emergency. Please report to the Emergency Department immediately or call 108.</p>
+                    <p className="font-semibold text-primary mb-1">Priority Alert — RED</p>
+                    <p>Presentation consistent with possible acute appendicitis. Recommend immediate surgical consult and imaging. Escalate to emergency team now.</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
           <div className="order-1 md:order-2">
-            <h2 className="text-4xl font-bold mb-6 text-foreground">Meet Your AI Health Assistant</h2>
+            <h2 className="text-4xl font-bold mb-6 text-foreground">AI-Assisted Clinical Support</h2>
             <p className="text-lg text-muted-foreground mb-6">
-              Powered by Google Gemini, our intelligent assistant provides instant symptom guidance and triage support. It helps categorize urgency before you even reach the desk.
+              Powered by Google Gemini, our clinical AI assistant provides instant symptom triage guidance and emergency prioritization — helping medical staff make faster, better-informed decisions at the point of care.
             </p>
             <div className="bg-destructive/10 text-destructive border border-destructive/20 p-4 rounded-lg text-sm mb-8">
-              <strong>Disclaimer:</strong> This AI tool is for preliminary guidance only and is not a replacement for professional medical diagnosis or doctors.
+              <strong>Clinical Disclaimer:</strong> This AI tool provides preliminary guidance only. All final clinical decisions must be made by qualified medical professionals.
             </div>
             <Button asChild size="lg" data-testid="try-ai-button">
-              <Link href="/login">Try AI Assistant</Link>
+              <Link href="/login">Access Clinical Dashboard</Link>
             </Button>
           </div>
         </div>
@@ -190,13 +190,13 @@ export default function LandingPage() {
       {/* Why Choose Us */}
       <section className="py-24 px-6 bg-background">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl font-bold mb-12 text-foreground">Why Choose Sapthagiri</h2>
+          <h2 className="text-3xl font-bold mb-12 text-foreground">Why Sapthagiri Healthcare</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div className="flex flex-col items-center text-center p-4">
               <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                 <Activity className="w-8 h-8 text-foreground" />
               </div>
-              <h4 className="font-semibold mb-2">Fast Response</h4>
+              <h4 className="font-semibold mb-2">Rapid Response</h4>
               <p className="text-sm text-muted-foreground">Under 3 minutes triage time</p>
             </div>
             <div className="flex flex-col items-center text-center p-4">
@@ -204,21 +204,21 @@ export default function LandingPage() {
                 <Brain className="w-8 h-8 text-foreground" />
               </div>
               <h4 className="font-semibold mb-2">AI-Powered</h4>
-              <p className="text-sm text-muted-foreground">Smart predictive analysis</p>
+              <p className="text-sm text-muted-foreground">Intelligent clinical analysis</p>
             </div>
             <div className="flex flex-col items-center text-center p-4">
               <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                 <ShieldCheck className="w-8 h-8 text-foreground" />
               </div>
-              <h4 className="font-semibold mb-2">Secure & Private</h4>
-              <p className="text-sm text-muted-foreground">Enterprise-grade protection</p>
+              <h4 className="font-semibold mb-2">Secure Records</h4>
+              <p className="text-sm text-muted-foreground">Doctor-verified edits only</p>
             </div>
             <div className="flex flex-col items-center text-center p-4">
               <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <Users className="w-8 h-8 text-foreground" />
+                <Phone className="w-8 h-8 text-foreground" />
               </div>
-              <h4 className="font-semibold mb-2">Student-Focused</h4>
-              <p className="text-sm text-muted-foreground">Tailored for campus life</p>
+              <h4 className="font-semibold mb-2">Patient-Centered</h4>
+              <p className="text-sm text-muted-foreground">Phone-first patient identity</p>
             </div>
           </div>
         </div>
@@ -229,21 +229,21 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2">
             <HeartPulse className="w-5 h-5 text-primary" />
-            <span className="font-bold text-foreground">Sapthagiri</span>
+            <span className="font-bold text-foreground">Sapthagiri Healthcare</span>
           </div>
           <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
             <button onClick={scrollToAbout} className="hover:text-primary transition-colors">About</button>
-            <Link href="/login" className="hover:text-primary transition-colors">Emergency</Link>
+            <Link href="/login" className="hover:text-primary transition-colors">Emergency Access</Link>
             <Link href="/login" className="hover:text-primary transition-colors">AI Assistant</Link>
-            <Link href="/login" className="hover:text-primary transition-colors">Login</Link>
+            <Link href="/signup" className="hover:text-primary transition-colors">Patient Registration</Link>
           </div>
         </div>
         <div className="max-w-6xl mx-auto mt-8 pt-8 border-t border-border/50 text-center flex flex-col gap-4">
           <p className="text-sm font-semibold text-destructive">
-            Not a replacement for emergency services. Call 108 for life-threatening emergencies.
+            Not a replacement for emergency services. Call 108 immediately for life-threatening emergencies.
           </p>
           <p className="text-xs text-muted-foreground">
-            © 2025 Sapthagiri Student Healthcare System. All rights reserved.
+            © 2025 Sapthagiri Healthcare & Emergency Care. All rights reserved.
           </p>
         </div>
       </footer>

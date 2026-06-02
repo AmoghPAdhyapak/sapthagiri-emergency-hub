@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { HeartPulse, LogIn, ArrowRight } from "lucide-react";
+import { HeartPulse, LogIn, ArrowRight, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,76 +8,84 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError("Please enter credentials");
+    if (!phone || !password) {
+      setError("Please enter your phone number and password");
       return;
     }
-    
-    // UI illusion login
-    const name = email.split("@")[0] || "User";
-    localStorage.setItem("sapthagiri_user", JSON.stringify({ name, email, role: "Staff" }));
+    const name = phone.replace(/\D/g, "").slice(-4)
+      ? `Patient-${phone.replace(/\D/g, "").slice(-4)}`
+      : "Staff Member";
+    localStorage.setItem(
+      "sapthagiri_user",
+      JSON.stringify({ name, phone, email: "", role: "Staff" })
+    );
     setLocation("/dashboard");
   };
 
   const handleGuestLogin = () => {
-    localStorage.setItem("sapthagiri_user", JSON.stringify({ name: "Guest Staff", email: "guest@sapthagiri.edu", role: "Staff" }));
+    localStorage.setItem(
+      "sapthagiri_user",
+      JSON.stringify({ name: "Guest Staff", phone: "0000000000", email: "", role: "Staff" })
+    );
     setLocation("/dashboard");
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Background decoration */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background pointer-events-none" />
-      
+
       <div className="w-full max-w-md relative z-10">
         <div className="flex flex-col items-center mb-8 text-center">
           <div className="bg-primary/20 p-3 rounded-xl mb-4">
             <HeartPulse className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Sapthagiri Emergency</h1>
-          <p className="text-sm text-muted-foreground uppercase tracking-widest mt-1">Authorized Access Only</p>
+          <p className="text-sm text-muted-foreground uppercase tracking-widest mt-1">Authorized Medical Staff Access</p>
         </div>
 
         <Card className="border-primary/20 shadow-[0_0_30px_hsl(180_70%_50%_/_0.1)] bg-card/80 backdrop-blur-sm glow-border">
           <CardHeader>
-            <CardTitle>Login to Dashboard</CardTitle>
-            <CardDescription>Enter your staff credentials to access the control room.</CardDescription>
+            <CardTitle>Staff Login</CardTitle>
+            <CardDescription>Enter your phone number to access the emergency control room.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email address</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="staff@sapthagiri.edu" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-background/50"
-                  data-testid="input-email"
+                <Label htmlFor="phone" className="flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5 text-primary" />
+                  Phone Number <span className="text-primary text-xs font-bold ml-1">PRIMARY ID</span>
+                </Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="+91 98765 43210"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="bg-background/50 font-mono"
+                  data-testid="input-phone"
+                  autoComplete="tel"
                 />
               </div>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
-                </div>
-                <Input 
-                  id="password" 
-                  type="password" 
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="bg-background/50"
                   data-testid="input-password"
+                  autoComplete="current-password"
                 />
               </div>
-              
+
               {error && (
                 <div className="text-sm text-destructive font-medium p-2 bg-destructive/10 border border-destructive/20 rounded-md">
                   {error}
@@ -89,7 +97,7 @@ export default function LoginPage() {
                 Login Securely
               </Button>
             </form>
-            
+
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-border" />
@@ -99,9 +107,9 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button 
-              variant="secondary" 
-              className="w-full" 
+            <Button
+              variant="secondary"
+              className="w-full"
               onClick={handleGuestLogin}
               data-testid="button-guest-login"
             >
@@ -111,9 +119,9 @@ export default function LoginPage() {
           </CardContent>
           <CardFooter className="flex justify-center border-t border-border/50 pt-6 pb-6">
             <p className="text-sm text-muted-foreground">
-              Don't have an account?{" "}
+              New patient?{" "}
               <Link href="/signup" className="text-primary hover:underline font-medium">
-                Sign up
+                Register here
               </Link>
             </p>
           </CardFooter>

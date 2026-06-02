@@ -1,0 +1,187 @@
+IMPORTANT UPDATE — MODIFY EXISTING IMPLEMENTATION CAREFULLY.
+
+The previous implementation still feels too “student wellness portal” oriented.
+
+REMOVE:
+
+* student wellness wording
+* student community messaging
+* educational/campus counseling tone
+
+The platform should now feel like:
+
+# a professional healthcare & emergency patient-management portal under Sapthagiri Healthcare.
+
+---
+
+## UPDATED PATIENT REGISTRATION FLOW
+
+IMPORTANT CHANGE:
+Patient registration should now primarily use:
+
+* Phone Number (PRIMARY identity)
+* Email/Gmail (ONLY backup/recovery/contact purpose)
+
+Meaning:
+Phone number becomes the main patient identifier.
+
+During signup collect:
+
+* full name
+* phone number
+* email (optional backup)
+* room number
+* health details/basic symptoms
+
+---
+
+## IMPORTANT UI CORRECTION
+
+REMOVE ALL:
+
+* “students”
+* “student wellness”
+* “community wellness”
+* “campus healthcare initiative”
+* educational wording
+
+REPLACE WITH:
+
+* hospital/emergency care language
+* patient-care terminology
+* healthcare professionalism
+* emergency response messaging
+* critical care support language
+
+The site should feel like:
+
+* a modern hospital portal
+* AI-assisted emergency healthcare system
+* patient-management platform
+
+NOT:
+
+* university awareness website
+
+---
+
+## PATIENT ACCOUNT SYSTEM
+
+Inside:
+Sidebar → Account
+
+Display:
+
+* patient name
+* phone number (main identity)
+* email backup
+* room number
+* medical observations
+* emergency status
+* profile details
+
+---
+
+## PATIENT HEALTH RECORDS
+
+Patients should have:
+
+* symptoms
+* observations
+* emergency level
+* editable health records
+
+BUT:
+critical edits require doctor approval.
+
+---
+
+## DOCTOR VERIFICATION SYSTEM
+
+When editing health records:
+show popup/modal:
+
+* doctor ID input
+* verification step
+
+Only approved doctor IDs can authorize edits.
+
+DO NOT implement enterprise authentication.
+
+Use lightweight verification only.
+
+---
+
+## DEAN ACCESS PANEL
+
+Inside:
+Sidebar → Settings → Dean Access
+
+Password:
+apa@07072007
+
+Dean Name:
+Dr. Amogh P Adhyapak
+
+Dean panel should manage:
+
+* doctor names
+* doctor IDs
+* doctor registry list
+
+Preferred lightweight structure:
+doctors.json
+
+Example:
+[
+{
+"name": "Dr. John",
+"doctor_id": "DOC102"
+}
+]
+
+The doctor verification popup should validate entered IDs against this file/list.
+
+---
+
+## CRITICAL IMPLEMENTATION RULES
+
+DO NOT:
+
+* add JWT auth
+* add OAuth
+* add enterprise RBAC
+* introduce huge databases
+* rewrite backend architecture
+* break existing APIs
+* create unnecessary folder complexity
+
+Keep:
+
+* lightweight architecture
+* hackathon-speed structure
+* deployment-safe implementation
+* minimal-file modifications
+
+---
+
+## UI / UX GOAL
+
+The final product should feel like:
+
+# a believable AI-assisted hospital emergency & patient-care platform
+
+with:
+
+* dark modern healthcare UI
+* professional hospital branding
+* emergency monitoring feel
+* patient-management workflow
+* clean sidebar navigation
+* healthcare-grade dashboard psychology
+
+NOT:
+
+* a student portal
+* a college awareness website
+* a developer prototype
