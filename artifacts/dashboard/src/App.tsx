@@ -1,4 +1,5 @@
-import { useEffect, ReactNode } from "react";
+import { useEffect, useState, ReactNode } from "react";
+import { SplashScreen } from "@/components/SplashScreen";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -41,6 +42,8 @@ function Router() {
 }
 
 function App() {
+  const [splashDone, setSplashDone] = useState(false);
+
   // Force dark mode for control room app
   useEffect(() => {
     document.documentElement.classList.add("dark");
@@ -49,6 +52,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Router />
         </WouterRouter>
