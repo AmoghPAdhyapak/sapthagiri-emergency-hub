@@ -1,0 +1,579 @@
+artifacts/
+├── api-server/src/
+│   ├── index.ts
+│   ├── app.ts
+│   ├── lib/logger.ts
+│   └── routes/
+│       ├── index.ts
+│       ├── health.ts
+│       ├── patients.ts
+│       ├── otp.ts
+│       └── gemini/conversations.ts
+└── dashboard/src/
+    ├── index.css
+    ├── App.tsx
+    ├── data/doctors.json
+    ├── assets/logo.png
+    ├── pages/
+    │   ├── LandingPage.tsx
+    │   ├── LoginPage.tsx
+    │   ├── SignUpPage.tsx
+    │   ├── Dashboard.tsx
+    │   └── not-found.tsx
+    └── components/
+        ├── SplashScreen.tsx
+        ├── StatsBar.tsx
+        ├── PatientList.tsx
+        ├── PatientAnalysisPanel.tsx
+        ├── AiChatPanel.tsx
+        ├── MedicalNotesPanel.tsx
+        ├── EmergencySos.tsx
+        └── DoctorVerificationModal.tsx
+
+🔵 API SERVER
+artifacts/api-server/src/index.ts
+import app from "./app";
+import { logger } from "./lib/logger";
+const rawPort = process.env["PORT"];
+if (!rawPort) {
+  throw new Error("PORT environment variable is required but was not provided.");
+}
+const port = Number(rawPort);
+if (Number.isNaN(port) || port <= 0) {
+  throw new Error(`Invalid PORT value: "${rawPort}"`);
+}
+app.listen(port, (err) => {
+  if (err) {
+    logger.error({ err }, "Error listening on port");
+    process.exit(1);
+  }
+  logger.info({ port }, "Server listening");
+});
+
+artifacts/api-server/src/app.ts
+import express, { type Express } from "express";
+import cors from "cors";
+import pinoHttp from "pino-http";
+import router from "./routes";
+import { logger } from "./lib/logger";
+const app: Express = express();
+app.use(
+  pinoHttp({
+    logger,
+    serializers: {
+      req(req) {
+        return { id: req.id, method: req.method, url: req.url?.split("?")[0] };
+      },
+      res(res) {
+        return { statusCode: res.statusCode };
+      },
+    },
+  }),
+);
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use("/api", router);
+export default app;
+
+artifacts/api-server/src/lib/logger.ts
+import pino from "pino";
+const isProduction = process.env.NODE_ENV === "production";
+export const logger = pino({
+  level: process.env.LOG_LEVEL ?? "info",
+  redact: [
+    "req.headers.authorization",
+    "req.headers.cookie",
+    "res.headers['set-cookie']",
+  ],
+  ...(isProduction
+    ? {}
+    : {
+        transport: {
+          target: "pino-pretty",
+          options: { colorize: true },
+        },
+      }),
+});
+
+artifacts/api-server/src/routes/index.ts
+import { Router, type IRouter } from "express";
+import healthRouter from "./health";
+import patientsRouter from "./patients";
+import geminiRouter from "./gemini";
+import otpRouter from "./otp";
+const router: IRouter = Router();
+router.use(healthRouter);
+router.use(patientsRouter);
+router.use("/gemini", geminiRouter);
+router.use(otpRouter);
+export default router;
+
+artifacts/api-server/src/routes/health.ts
+import { Router, type IRouter } from "express";
+import { HealthCheckResponse } from "@workspace/api-zod";
+const router: IRouter = Router();
+router.get("/healthz", (_req, res) => {
+  const data = HealthCheckResponse.parse({ status: "ok" });
+  res.json(data);
+});
+export default router;
+
+artifacts/api-server/src/routes/patients.ts
+import { Router } from "express";
+const router = Router();
+interface Patient {
+  id: number;
+  name: string;
+  room_no: string;
+  bed_no: string;
+  symptoms: string;
+  priority: "RED" | "YELLOW" | "GREEN";
+  status: "active" | "handled";
+  created_at: string;
+}
+let patients: Patient[] = [];
+let nextId = 1;
+function triage(symptoms: string = ""): "RED" | "YELLOW" | "GREEN" {
+  const s = symptoms.toLowerCase();
+  const RED = ["chest pain","unconscious","not breathing","seizure","stroke","severe bleeding","cardiac","heart attack"];
+  const YELLOW = ["shortness of breath","high fever","fracture","vomiting blood","deep cut","dehydration","head injury"];
+  if (RED.some((k) => s.includes(k))) return "RED";
+  if (YELLOW.some((k) => s.includes(k))) return "YELLOW";
+  return "GREEN";
+}
+const priorityOrder: Record<string, number> = { RED: 0, YELLOW: 1, GREEN: 2 };
+function sortedPatients(): Patient[] {
+  return [...patients].sort((a, b) => {
+    if (a.status === "handled" && b.status !== "handled") return 1;
+    if (b.status === "handled" && a.status !== "handled") return -1;
+    return (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3);
+  });
+}
+router.get("/patients/stats", (req, res) => {
+  res.json({
+    total: patients.length,
+    active: patients.filter((p) => p.status === "active").length,
+    handled: patients.filter((p) => p.status === "handled").length,
+    red: patients.filter((p) => p.priority === "RED").length,
+    yellow: patients.filter((p) => p.priority === "YELLOW").length,
+    green: patients.filter((p) => p.priority === "GREEN").length,
+  });
+});
+router.get("/patients", (_req, res) => {
+  res.json(sortedPatients());
+});
+router.post("/patients", (req, res) => {
+  const staff = (req.headers["x-staff-identity"] as string) || "System Gateway";
+  const { name, room_no, bed_no, symptoms } = req.body || {};
+  if (!name || !room_no || !symptoms) {
+    res.status(400).json({ error: "name, room_no, symptoms required" });
+    return;
+  }
+  const patient: Patient = {
+    id: nextId++, name, room_no, bed_no: bed_no || "", symptoms,
+    priority: triage(symptoms), status: "active", created_at: new Date().toISOString(),
+  };
+  patients.push(patient);
+  req.log.info(`[AUDIT] 🏨 Staff Identity [${staff}] successfully ADMITTED patient: ${name} to Room ${room_no}.`);
+  res.status(201).json(patient);
+});
+router.patch("/patients/:id", (req, res) => {
+  const staff = (req.headers["x-staff-identity"] as string) || "System Gateway";
+  const id = Number(req.params.id);
+  const p = patients.find((x) => x.id === id);
+  if (!p) { res.status(404).json({ error: "not found" }); return; }
+  Object.assign(p, req.body || {});
+  req.log.info(`[AUDIT] ⚡ Staff Identity [${staff}] updated status for Patient ID #${id} to [${req.body?.status || "modified"}].`);
+  res.json(p);
+});
+router.delete("/patients/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const exists = patients.some((x) => x.id === id);
+  if (!exists) { res.status(404).json({ error: "not found" }); return; }
+  patients = patients.filter((x) => x.id !== id);
+  res.json({ ok: true });
+});
+export default router;
+
+artifacts/api-server/src/routes/otp.ts
+import { Router } from "express";
+const router = Router();
+interface OtpRecord { otp: string; expiry: number; attempts: number; }
+const otpStore = new Map<string, OtpRecord>();
+const OTP_TTL_MS = 120_000;
+const MAX_ATTEMPTS = 5;
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+async function trySendSms(phone: string, otp: string): Promise<boolean> {
+  const apiKey = process.env.FAST2SMS_API_KEY;
+  if (!apiKey) {
+    console.log(`\n${"─".repeat(50)}\n[OTP-DEMO] +91${phone} → ${otp}\n${"─".repeat(50)}\n`);
+    return false;
+  }
+  const url = new URL("https://www.fast2sms.com/dev/bulkV2");
+  url.searchParams.set("authorization", apiKey);
+  url.searchParams.set("message", `Your Sapthagiri NPS University OTP is: ${otp}. Valid for 2 minutes. Do not share.`);
+  url.searchParams.set("language", "english");
+  url.searchParams.set("route", "q");
+  url.searchParams.set("numbers", phone);
+  try {
+    const res = await fetch(url.toString());
+    const data = (await res.json()) as { return: boolean; message?: string };
+    if (data.return) return true;
+    console.log(`[OTP-DEMO] SMS failed (${data.message}). Falling back to demo mode. +91${phone} → ${otp}`);
+  } catch {
+    console.log(`[OTP-DEMO] SMS fetch error. Falling back. +91${phone} → ${otp}`);
+  }
+  return false;
+}
+// POST /api/otp/send
+router.post("/otp/send", async (req, res) => {
+  const phone = String(req.body?.phone ?? "").replace(/\D/g, "");
+  if (phone.length < 7 || phone.length > 15) {
+    res.status(400).json({ error: "Enter a valid phone number." });
+    return;
+  }
+  const otp = generateOtp();
+  otpStore.set(phone, { otp, expiry: Date.now() + OTP_TTL_MS, attempts: 0 });
+  const smsSent = await trySendSms(phone, otp);
+  if (smsSent) {
+    res.json({ success: true, sms: true });
+  } else {
+    res.json({ success: true, sms: false, demo_otp: otp });
+  }
+});
+// POST /api/otp/verify
+router.post("/otp/verify", (req, res) => {
+  const phone = String(req.body?.phone ?? "").replace(/\D/g, "");
+  const otp   = String(req.body?.otp   ?? "").trim();
+  const record = otpStore.get(phone);
+  if (!record) {
+    res.status(400).json({ error: "No OTP found for this number. Request a new one." });
+    return;
+  }
+  if (Date.now() > record.expiry) {
+    otpStore.delete(phone);
+    res.status(400).json({ error: "OTP has expired. Please request a new one." });
+    return;
+  }
+  record.attempts += 1;
+  if (record.attempts > MAX_ATTEMPTS) {
+    otpStore.delete(phone);
+    res.status(400).json({ error: "Too many failed attempts. Please request a new OTP." });
+    return;
+  }
+  if (otp !== record.otp) {
+    res.status(400).json({ error: `Incorrect OTP. ${MAX_ATTEMPTS - record.attempts} attempt(s) remaining.` });
+    return;
+  }
+  otpStore.delete(phone);
+  res.json({ success: true });
+});
+export default router;
+
+artifacts/api-server/src/routes/gemini/conversations.ts
+import { Router } from "express";
+import { db } from "@workspace/db";
+import { conversations as conversationsTable, messages as messagesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { ai } from "@workspace/integrations-gemini-ai";
+const router = Router();
+const SYSTEM_INSTRUCTION =
+  "You are a helpful, reassuring assistant for an emergency room triage dashboard. " +
+  "Provide concise, clear guidance to support emergency room staff and patients. " +
+  "You are NOT a doctor and cannot give diagnoses or prescriptions. " +
+  "If symptoms sound severe or life-threatening, always advise the user to notify medical staff immediately. " +
+  "Keep responses brief and actionable — staff are busy.";
+// GET /api/gemini/conversations
+router.get("/", async (req, res) => {
+  try {
+    const conversations = await db.select().from(conversationsTable).orderBy(conversationsTable.createdAt);
+    res.json(conversations);
+  } catch (err) {
+    req.log.error(err, "Failed to list conversations");
+    res.status(500).json({ error: "Failed to list conversations" });
+  }
+});
+// POST /api/gemini/conversations
+router.post("/", async (req, res) => {
+  try {
+    const { title } = req.body || {};
+    if (!title) { res.status(400).json({ error: "title is required" }); return; }
+    const [conversation] = await db.insert(conversationsTable).values({ title }).returning();
+    res.status(201).json(conversation);
+  } catch (err) {
+    req.log.error(err, "Failed to create conversation");
+    res.status(500).json({ error: "Failed to create conversation" });
+  }
+});
+// GET /api/gemini/conversations/:id
+router.get("/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [conversation] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, id));
+    if (!conversation) { res.status(404).json({ error: "Conversation not found" }); return; }
+    const messages = await db.select().from(messagesTable).where(eq(messagesTable.conversationId, id)).orderBy(messagesTable.createdAt);
+    res.json({ ...conversation, messages });
+  } catch (err) {
+    req.log.error(err, "Failed to get conversation");
+    res.status(500).json({ error: "Failed to get conversation" });
+  }
+});
+// DELETE /api/gemini/conversations/:id
+router.delete("/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [existing] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Conversation not found" }); return; }
+    await db.delete(messagesTable).where(eq(messagesTable.conversationId, id));
+    await db.delete(conversationsTable).where(eq(conversationsTable.id, id));
+    res.status(204).send();
+  } catch (err) {
+    req.log.error(err, "Failed to delete conversation");
+    res.status(500).json({ error: "Failed to delete conversation" });
+  }
+});
+// POST /api/gemini/conversations/:id/messages  — SSE streaming
+router.post("/:id/messages", async (req, res) => {
+  const id = Number(req.params.id);
+  const staff = (req.headers["x-staff-identity"] as string) || "System Gateway";
+  try {
+    const { content } = req.body || {};
+    if (!content) { res.status(400).json({ error: "content is required" }); return; }
+    req.log.info(`[AUDIT] 🤖 Staff Identity [${staff}] requested Gemini diagnostic support for message: "${content.substring(0, 30)}..."`);
+    const [conversation] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, id));
+    if (!conversation) { res.status(404).json({ error: "Conversation not found" }); return; }
+    await db.insert(messagesTable).values({ conversationId: id, role: "user", content });
+    const history = await db.select().from(messagesTable)
+      .where(eq(messagesTable.conversationId, id))
+      .orderBy(messagesTable.createdAt);
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    const chatMessages = [
+      { role: "user" as const, parts: [{ text: SYSTEM_INSTRUCTION }] },
+      ...history.map((m) => ({
+        role: (m.role === "assistant" ? "model" : "user") as "user" | "model",
+        parts: [{ text: m.content }],
+      })),
+    ];
+    let fullResponse = "";
+    const stream = await ai.models.generateContentStream({
+      model: "gemini-2.5-flash",
+      contents: chatMessages,
+      config: { maxOutputTokens: 8192 },
+    });
+    for await (const chunk of stream) {
+      const text = chunk.text;
+      if (text) {
+        fullResponse += text;
+        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+      }
+    }
+    await db.insert(messagesTable).values({ conversationId: id, role: "assistant", content: fullResponse });
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err) {
+    req.log.error(err, "AI chat stream failed");
+    res.write(`data: ${JSON.stringify({ error: "AI assistant is currently unavailable. Please speak to onsite medical staff." })}\n\n`);
+    res.end();
+  }
+});
+export default router;
+
+🟢 DASHBOARD (React/Vite)
+artifacts/dashboard/src/data/doctors.json
+[
+  { "name": "Dr. Amogh P Adhyapak", "doctor_id": "DOC001" },
+  { "name": "Dr. Sarah Mitchell",    "doctor_id": "DOC101" },
+  { "name": "Dr. Raj Patel",         "doctor_id": "DOC102" },
+  { "name": "Dr. Priya Sharma",      "doctor_id": "DOC103" },
+  { "name": "Dr. James Fernandez",   "doctor_id": "DOC104" }
+]
+
+artifacts/dashboard/src/index.css
+(Dark-mode control room theme — cyan primary hsl(180 70% 50%), critical-pulse animations, orb float animations, glassmorphism, glow-border)
+Full content already shown above.
+
+artifacts/dashboard/src/App.tsx
+import { useEffect, useState, ReactNode } from "react";
+import { SplashScreen } from "@/components/SplashScreen";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import NotFound from "@/pages/not-found";
+import Dashboard from "@/pages/Dashboard";
+import LandingPage from "@/pages/LandingPage";
+import LoginPage from "@/pages/LoginPage";
+import SignUpPage from "@/pages/SignUpPage";
+const queryClient = new QueryClient();
+function AuthGuard({ children }: { children: ReactNode }) {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    const user = localStorage.getItem("sapthagiri_user");
+    if (!user) setLocation("/login");
+  }, [setLocation]);
+  return <>{children}</>;
+}
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={LandingPage} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/signup" component={SignUpPage} />
+      <Route path="/dashboard">
+        <AuthGuard><Dashboard /></AuthGuard>
+      </Route>
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+function App() {
+  const [splashDone, setSplashDone] = useState(false);
+  useEffect(() => { document.documentElement.classList.add("dark"); }, []);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <Router />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+export default App;
+
+artifacts/dashboard/src/components/SplashScreen.tsx
+import { useEffect, useState } from "react";
+import splashLogo from "@assets/ChatGPT_image_logo_Image_Jun_2,_2026,_02_27_22_PM_1780393955376.png";
+export function SplashScreen({ onDone }: { onDone: () => void }) {
+  const [phase, setPhase] = useState<"enter" | "hold" | "exit">("enter");
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase("hold"), 100);
+    const t2 = setTimeout(() => setPhase("exit"), 2800);
+    const t3 = setTimeout(() => onDone(), 3500);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [onDone]);
+  return (
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#020817]"
+      style={{ opacity: phase === "exit" ? 0 : 1, transition: phase === "exit" ? "opacity 0.7s ease-in-out" : "none" }}>
+      {/* Ambient glow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full"
+          style={{ background: "radial-gradient(circle, rgba(0,150,255,0.08) 0%, transparent 70%)", animation: "pulse 3s ease-in-out infinite" }} />
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full"
+          style={{ background: "radial-gradient(circle, rgba(0,200,255,0.06) 0%, transparent 70%)", animation: "pulse 2s ease-in-out infinite 0.5s" }} />
+      </div>
+      {/* Content */}
+      <div className="relative flex flex-col items-center gap-6"
+        style={{ opacity: phase === "enter" ? 0 : 1, transform: phase === "enter" ? "scale(0.88) translateY(12px)" : "scale(1) translateY(0)", transition: "opacity 0.8s ease-out, transform 0.8s cubic-bezier(0.34,1.2,0.64,1)" }}>
+        <div className="relative">
+          <div className="absolute inset-0 rounded-full" style={{ boxShadow: "0 0 60px 20px rgba(0,180,255,0.18), 0 0 120px 40px rgba(0,100,255,0.1)" }} />
+          <img src={splashLogo} alt="Sapthagiri NPS University" className="relative w-44 h-44 object-contain drop-shadow-2xl"
+            style={{ filter: "drop-shadow(0 0 24px rgba(0,180,255,0.4))" }} />
+        </div>
+        <div className="text-center" style={{ opacity: phase === "enter" ? 0 : 1, transition: "opacity 0.7s ease-out 0.35s, transform 0.7s ease-out 0.35s" }}>
+          <h1 className="text-3xl font-black text-white uppercase tracking-[0.18em] mb-1">Sapthagiri <span className="text-cyan-400">NPS</span></h1>
+          <p className="text-sm font-bold text-slate-400 uppercase tracking-[0.25em] mb-0.5">Institute of Medical Sciences & Research Center</p>
+          <p className="text-xs font-mono text-cyan-500/70 uppercase tracking-widest">AI-Assisted Healthcare Platform</p>
+        </div>
+        {/* Loading bar */}
+        <div className="w-56 h-0.5 bg-slate-800 rounded-full overflow-hidden" style={{ opacity: phase === "enter" ? 0 : 1, transition: "opacity 0.5s ease-out 0.6s" }}>
+          <div className="h-full bg-gradient-to-r from-cyan-500 via-blue-400 to-cyan-500 rounded-full"
+            style={{ width: phase === "hold" || phase === "exit" ? "100%" : "0%", transition: "width 2.2s cubic-bezier(0.4,0,0.2,1) 0.7s", boxShadow: "0 0 8px rgba(0,210,255,0.8)" }} />
+        </div>
+        <p className="text-[10px] font-mono text-slate-600 uppercase tracking-[0.3em]"
+          style={{ opacity: phase === "enter" ? 0 : 1, transition: "opacity 0.5s ease-out 0.8s" }}>
+          Initializing Emergency Systems…
+        </p>
+      </div>
+      <div className="absolute bottom-8 text-center" style={{ opacity: phase === "enter" ? 0 : 0.4, transition: "opacity 0.6s ease-out 1s" }}>
+        <p className="text-[10px] font-mono text-slate-600 uppercase tracking-widest">Sapthagiri Medical Care Portal · v2025</p>
+      </div>
+    </div>
+  );
+}
+
+artifacts/dashboard/src/pages/LandingPage.tsx
+Full multi-section public portal: Navbar → Hero (animated orbs, live badge) → About → Services (RED/AI/24-7) → AI demo chat preview → Why Us → Footer with email + emergency disclaimer. (Full code shown above.)
+
+artifacts/dashboard/src/pages/LoginPage.tsx
+Phone + password login → saves sapthagiri_user to localStorage → redirects to /dashboard. Also has "Continue as Guest Staff" bypass. (Full code shown above.)
+
+artifacts/dashboard/src/pages/SignUpPage.tsx
+3-step OTP registration:
+
+Phone → POST /api/otp/send → shows demo OTP banner if SMS not funded
+Verify OTP → POST /api/otp/verify → countdown timer, resend
+Profile → name, email, room, role, symptoms, password → saves to localStorage → dashboard
+(Full code shown above.)
+artifacts/dashboard/src/pages/Dashboard.tsx
+(1053 lines — main shell)
+
+Key sections:
+
+Sidebar — logo, nav items: Emergency Hub / Patient Analysis / Medical Notes / My Account / Dean Access / AI Assistant (pulsing)
+AccountPanel — identity card, admission details, doctor-verified clinical record edit (with DoctorVerificationModal), self-reported symptoms
+DeanPanel — password-locked (apa@07072007), doctor registry CRUD (add/remove), Medical Notes Audit Log from sapthagiri_dean_alerts
+Main view router — switches between dashboard | analysis | ai | account | dean | notes
+Dashboard view — StatsBar + PatientList + EmergencySos + inline Gemini AI chat (sidebar panel)
+30-min session expiry — checks sapthagiri_login_ts on mount, auto-logout
+artifacts/dashboard/src/components/StatsBar.tsx
+6-card grid: Total / Active / Handled / Critical RED (pulsing) / YELLOW / GREEN — polls /api/patients/stats every 5s.
+
+artifacts/dashboard/src/components/PatientList.tsx
+Polls /api/patients every 5s, sorted RED→YELLOW→GREEN, handled at bottom
+Each PatientCard: priority badge, name, room, symptoms, wait time
+EDIT and HANDLE both trigger DoctorVerificationModal first
+Inline edit form: change priority + symptoms
+Delete (no verification required)
+RED cards pulse with animate-critical
+artifacts/dashboard/src/components/PatientAnalysisPanel.tsx
+Full medical intake form (react-hook-form + Zod):
+
+Patient Identity: name (auto-filled from account, read-only), age, gender, phone, room/bed
+Vital Analysis: BP, SpO₂, pulse, temperature, weight, diabetes status
+Medical Conditions: heart condition, allergies, existing diseases, current symptoms
+Emergency Notes (triage key field) → POST /api/patients → shows RED/YELLOW/GREEN result banner
+artifacts/dashboard/src/components/AiChatPanel.tsx
+Right-side slide-in panel:
+
+Conversation list (recent consults from DB)
+New chat / delete conversation
+SSE streaming from POST /api/gemini/conversations/:id/messages
+Inline typing cursor during stream
+"End-to-end Encrypted Session" badge, "Not a medical diagnosis tool" footer
+artifacts/dashboard/src/components/MedicalNotesPanel.tsx
+Add note form: doctor name, doctor ID (validated against registry), patient name, hospital, treatment comments
+Auto-verifies doctor ID → Verified (green) or Unverified (amber)
+Verified notes push a DeanAlert to sapthagiri_dean_alerts localStorage (dean sees them in audit log)
+Delete notes, timestamp display, security notice
+artifacts/dashboard/src/components/EmergencySos.tsx
+Floating red pulsing SOS button → stages:
+
+idle → pulsing button bottom-right
+confirm → modal "Activate Emergency Response?"
+locating → geolocation request
+dispatching → animated step checklist (4 steps over 6s)
+active → full-screen overlay: ETA countdown, dispatch status, OpenStreetMap iframe with coords, AI guidance messages scrolling in
+artifacts/dashboard/src/components/DoctorVerificationModal.tsx
+Reusable dialog — enter Doctor ID → validates against sapthagiri_doctors localStorage (falls back to doctors.json) → calls onVerified() on match, shows error on mismatch.
+
+🔑 KEY REFERENCE
+Thing	Value
+Dean password	apa@07072007
+Doctor IDs	DOC001, DOC101–DOC104
+Auth store	localStorage.sapthagiri_user
+Session key	localStorage.sapthagiri_login_ts (30-min TTL)
+Medical records	localStorage.sapthagiri_med_<phone>
+Medical notes	localStorage.sapthagiri_medical_notes
+Dean alerts	localStorage.sapthagiri_dean_alerts
+Doctor registry	localStorage.sapthagiri_doctors
+Primary color	hsl(180 70% 50%) — cyan
+API base	/api → Express on PORT env var
+Gemini model	gemini-2.5-flash
