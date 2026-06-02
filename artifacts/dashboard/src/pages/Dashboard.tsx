@@ -37,9 +37,11 @@ import {
   Send,
   MessageSquare,
   Loader2,
+  FileText,
 } from "lucide-react";
 import { AiChatPanel } from "@/components/AiChatPanel";
 import { DoctorVerificationModal } from "@/components/DoctorVerificationModal";
+import { MedicalNotesPanel } from "@/components/MedicalNotesPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +52,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import defaultDoctors from "@/data/doctors.json";
 import logoUrl from "@/assets/logo.png";
 
-type DashView = "dashboard" | "analysis" | "ai" | "account" | "dean";
+type DashView = "dashboard" | "analysis" | "ai" | "account" | "dean" | "notes";
 
 interface UserData {
   name: string;
@@ -121,6 +123,7 @@ function Sidebar({
   const navItems: { view: DashView; icon: React.ReactNode; label: string }[] = [
     { view: "dashboard", icon: <LayoutDashboard className="w-4 h-4" />, label: "Emergency Hub" },
     { view: "analysis",  icon: <Stethoscope className="w-4 h-4" />,    label: "Patient Analysis" },
+    { view: "notes",     icon: <FileText className="w-4 h-4" />,        label: "Medical Notes" },
     { view: "account",   icon: <User className="w-4 h-4" />,           label: "My Account" },
     { view: "dean",      icon: <Settings className="w-4 h-4" />,       label: "Dean Access" },
   ];
@@ -892,10 +895,27 @@ export default function Dashboard() {
         // ignore
       }
     }
-  }, []);
+    // Session expiry — 30 minutes
+    const SESSION_MS = 30 * 60 * 1000;
+    const loginTs = Number(localStorage.getItem("sapthagiri_login_ts") || "0");
+    if (loginTs && Date.now() - loginTs > SESSION_MS) {
+      localStorage.removeItem("sapthagiri_user");
+      localStorage.removeItem("sapthagiri_login_ts");
+      setLocation("/login");
+      return;
+    }
+    if (!loginTs) localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
+    const expiry = setTimeout(() => {
+      localStorage.removeItem("sapthagiri_user");
+      localStorage.removeItem("sapthagiri_login_ts");
+      setLocation("/login");
+    }, SESSION_MS - (Date.now() - loginTs));
+    return () => clearTimeout(expiry);
+  }, [setLocation]);
 
   const handleLogout = () => {
     localStorage.removeItem("sapthagiri_user");
+    localStorage.removeItem("sapthagiri_login_ts");
     setLocation("/");
   };
 
@@ -956,6 +976,7 @@ export default function Dashboard() {
         <main className="flex-1 overflow-auto">
           {activeView === "dashboard" && <PatientDashboardView />}
           {activeView === "analysis"  && <PatientAnalysisPanel />}
+          {activeView === "notes"     && <MedicalNotesPanel />}
           {activeView === "ai"        && <AiFullPage />}
           {activeView === "account"   && <AccountPanel user={user} />}
           {activeView === "dean"      && <DeanPanel />}

@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useAdmitPatient,
@@ -39,6 +39,7 @@ import {
   CheckCircle2,
   Droplets,
   Thermometer,
+  Lock,
 } from "lucide-react";
 
 const schema = z.object({
@@ -95,10 +96,13 @@ interface TriageResult {
 
 const SH = "flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3";
 
+interface StoredUser { name?: string; phone?: string; roomNumber?: string; }
+
 export function PatientAnalysisPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [result, setResult] = useState<TriageResult | null>(null);
+  const [prefilled, setPrefilled] = useState<StoredUser>({});
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -109,6 +113,20 @@ export function PatientAnalysisPanel() {
       existing_diseases: "", current_symptoms: "", emergency_notes: "",
     },
   });
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("sapthagiri_user");
+      if (stored) {
+        const u = JSON.parse(stored) as StoredUser;
+        setPrefilled(u);
+        if (u.name)       form.setValue("name",    u.name);
+        if (u.phone)      form.setValue("phone",   u.phone);
+        if (u.roomNumber) form.setValue("room_no", u.roomNumber);
+      }
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const admitPatient = useAdmitPatient({
     mutation: {
@@ -180,17 +198,31 @@ export function PatientAnalysisPanel() {
             {/* ── Section 1: Patient Identity ── */}
             <Card className="border-border bg-card shadow-md">
               <CardHeader className="pb-3 border-b border-border bg-muted/20">
-                <CardTitle className={SH}>
-                  <User className="w-3.5 h-3.5 text-primary" /> Patient Identity
+                <CardTitle className={`${SH} justify-between`}>
+                  <span className="flex items-center gap-2">
+                    <User className="w-3.5 h-3.5 text-primary" /> Patient Identity
+                  </span>
+                  {prefilled.name && (
+                    <Badge className="bg-primary/10 border-primary/30 text-primary border text-[9px] px-2 py-0.5 flex items-center gap-1 font-bold">
+                      <Lock className="w-2.5 h-2.5" /> Auto-filled from account
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
+                  {/* Name — read-only if prefilled */}
                   <FormField control={form.control} name="name" render={({ field }) => (
                     <FormItem className="col-span-2">
                       <FormLabel className="text-xs text-muted-foreground">Full Name *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Last, First" {...field} className="bg-background h-9" data-testid="input-name" />
+                        <Input
+                          placeholder="Last, First"
+                          {...field}
+                          readOnly={!!prefilled.name}
+                          className={`bg-background h-9 ${prefilled.name ? "opacity-70 cursor-not-allowed border-primary/20" : ""}`}
+                          data-testid="input-name"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -221,20 +253,39 @@ export function PatientAnalysisPanel() {
                       </Select>
                     </FormItem>
                   )} />
+                  {/* Phone — read-only if prefilled */}
                   <FormField control={form.control} name="phone" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs text-muted-foreground">Phone Number</FormLabel>
+                      <FormLabel className="text-xs text-muted-foreground flex items-center gap-1">
+                        Phone Number
+                        {prefilled.phone && <Lock className="w-2.5 h-2.5 text-primary/60" />}
+                      </FormLabel>
                       <FormControl>
-                        <Input placeholder="+91 98765 43210" type="tel" {...field} className="bg-background h-9 font-mono" />
+                        <Input
+                          placeholder="+91 98765 43210"
+                          type="tel"
+                          {...field}
+                          readOnly={!!prefilled.phone}
+                          className={`bg-background h-9 font-mono ${prefilled.phone ? "opacity-70 cursor-not-allowed border-primary/20" : ""}`}
+                        />
                       </FormControl>
                     </FormItem>
                   )} />
                   <div className="grid grid-cols-2 gap-2 col-span-2">
+                    {/* Room — pre-filled from account, still editable */}
                     <FormField control={form.control} name="room_no" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs text-muted-foreground">Room / Ward *</FormLabel>
+                        <FormLabel className="text-xs text-muted-foreground flex items-center gap-1">
+                          Room / Ward *
+                          {prefilled.roomNumber && <Lock className="w-2.5 h-2.5 text-primary/60" />}
+                        </FormLabel>
                         <FormControl>
-                          <Input placeholder="ER-1" {...field} className="bg-background h-9 font-mono uppercase" data-testid="input-room" />
+                          <Input
+                            placeholder="ER-1"
+                            {...field}
+                            className={`bg-background h-9 font-mono uppercase ${prefilled.roomNumber ? "border-primary/30" : ""}`}
+                            data-testid="input-room"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
