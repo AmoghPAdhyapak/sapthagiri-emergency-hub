@@ -1,17 +1,40 @@
-import React, { useEffect } from "react";
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { useEffect, ReactNode } from "react";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
+import LandingPage from "@/pages/LandingPage";
+import LoginPage from "@/pages/LoginPage";
+import SignUpPage from "@/pages/SignUpPage";
 
 const queryClient = new QueryClient();
+
+function AuthGuard({ children }: { children: ReactNode }) {
+  const [, setLocation] = useLocation();
+  
+  useEffect(() => {
+    const user = localStorage.getItem("sapthagiri_user");
+    if (!user) {
+      setLocation("/login");
+    }
+  }, [setLocation]);
+
+  return <>{children}</>;
+}
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
+      <Route path="/" component={LandingPage} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/signup" component={SignUpPage} />
+      <Route path="/dashboard">
+        <AuthGuard>
+          <Dashboard />
+        </AuthGuard>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );

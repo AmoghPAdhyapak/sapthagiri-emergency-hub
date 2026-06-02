@@ -1,0 +1,177 @@
+We need a MAJOR frontend transformation — but ONLY at the UI/UX perception layer. Do NOT rewrite backend architecture or API routes.
+
+Current backend + API system is already stable and working.
+
+The problem:
+Right now the frontend looks like an internal developer dashboard/prototype, NOT a believable public healthcare website.
+
+I want you to transform the current UI into a PROFESSIONAL PUBLIC-FACING HOSPITAL WEBSITE while preserving the existing emergency dashboard functionality underneath.
+
+IMPORTANT:
+This is for:
+
+# Sapthagiri Hospital / Sapthagiri Student Healthcare System
+
+The website should feel like:
+
+* a modern healthcare institution website
+* a real hospital portal
+* professional and trustworthy
+* public-facing
+* student/patient friendly
+
+Use the attached healthcare UI reference inspiration style:
+
+* cleaner spacing
+* modern cards
+* hero section
+* professional healthcare branding
+* soft gradients
+* better typography hierarchy
+* cleaner navbar
+* smoother visual sections
+
+DO NOT completely redesign everything from scratch.
+Modify the EXISTING frontend carefully.
+
+---
+
+## REQUIRED FRONTEND CHANGES
+
+1. WEBSITE BRANDING
+   Replace current "TRIAGE CONTROL" style branding with something like:
+
+"Sapthagiri Healthcare & Emergency Care"
+OR
+"Sapthagiri Smart Emergency Hub"
+
+Add:
+
+* healthcare-style subtitle
+* professional navbar
+* hospital-style aesthetic
+
+---
+
+2. LANDING / HERO SECTION
+   Add a proper homepage hero section before the dashboard.
+
+Hero section should contain:
+
+* hospital title
+* healthcare tagline
+* emergency support message
+* CTA button:
+  "Open Emergency Dashboard"
+
+Style inspiration:
+modern healthcare websites from Figma/Dribbble.
+
+---
+
+3. PUBLIC WEBSITE FEEL
+   Add:
+
+* About section
+* Emergency support section
+* AI Healthcare Assistant section
+* Why choose us section
+* Footer section
+
+This should visually feel like:
+a real public healthcare portal.
+
+---
+
+4. LIGHTWEIGHT AUTH ILLUSION
+   IMPORTANT:
+   DO NOT build real authentication backend.
+
+Instead:
+Create simple frontend-only flow using localStorage/sessionStorage:
+
+* Sign Up page
+* Login page
+* Continue as Guest Staff option
+
+This is ONLY for UI perception.
+No JWT/auth/database systems.
+
+Keep it extremely lightweight.
+
+---
+
+5. DASHBOARD INTEGRATION
+   The current emergency dashboard should remain functional.
+
+Flow should become:
+
+Landing Page
+↓
+Login/Guest
+↓
+Emergency Dashboard
+
+Do NOT break:
+
+* patient APIs
+* monitoring system
+* triage logic
+* credits API
+
+---
+
+6. AI ASSISTANT SECTION
+   Keep the AI Assistant button/panel but redesign it visually to feel:
+
+* modern
+* healthcare-oriented
+* AI support assistant
+
+---
+
+7. VISUAL STYLE
+   Use:
+
+* dark mode healthcare aesthetic
+* subtle glowing accents
+* cleaner healthcare cards
+* better spacing
+* responsive layout
+
+Goal:
+Professional hospital website + emergency control room hybrid.
+
+---
+
+8. IMPORTANT CONSTRAINTS
+
+* DO NOT touch backend architecture unnecessarily
+* DO NOT add real authentication systems
+* DO NOT introduce Redux / complex state systems
+* DO NOT create huge folder restructures
+* DO NOT rewrite APIs
+* DO NOT break current Replit deployment
+
+Keep modifications:
+
+* frontend-focused
+* minimal-file
+* deployment-safe
+* hackathon-speed optimized
+
+---
+
+9. MOST IMPORTANT GOAL
+   The judges should feel:
+   "This looks like a real healthcare platform"
+
+NOT:
+"This is just a student developer dashboard."
+
+Focus heavily on:
+
+* presentation psychology
+* UI polish
+* public-facing professionalism
+* believable healthcare branding

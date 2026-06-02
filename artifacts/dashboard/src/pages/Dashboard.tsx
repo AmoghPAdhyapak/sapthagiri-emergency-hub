@@ -1,13 +1,31 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { StatsBar } from "@/components/StatsBar";
 import { AdmitPatientForm } from "@/components/AdmitPatientForm";
 import { PatientList } from "@/components/PatientList";
-import { Activity, Bot } from "lucide-react";
+import { Activity, Bot, LogOut } from "lucide-react";
 import { AiChatPanel } from "@/components/AiChatPanel";
 import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [, setLocation] = useLocation();
+  const [userName, setUserName] = useState<string>("Staff");
+
+  useEffect(() => {
+    const user = localStorage.getItem("sapthagiri_user");
+    if (user) {
+      try {
+        const parsed = JSON.parse(user);
+        if (parsed.name) setUserName(parsed.name);
+      } catch (e) {}
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("sapthagiri_user");
+    setLocation("/");
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-primary selection:text-primary-foreground overflow-hidden relative">
@@ -19,14 +37,17 @@ export default function Dashboard() {
           </div>
           <div>
             <h1 className="text-xl font-black uppercase tracking-widest text-primary leading-tight">
-              Triage Control
+              Sapthagiri Emergency Hub
             </h1>
             <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
-              Smart Patient Emergency & Monitoring System
+              Sapthagiri Healthcare & Emergency Care — Live Control Room
             </p>
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <span className="text-sm font-medium text-muted-foreground hidden md:inline-block">
+            Welcome, {userName}
+          </span>
           <Button 
             variant="outline" 
             size="sm" 
@@ -36,6 +57,16 @@ export default function Dashboard() {
           >
             <Bot className="w-4 h-4 mr-2" />
             AI Assistant
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={handleLogout}
+            data-testid="button-logout"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
           </Button>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
