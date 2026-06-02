@@ -73,7 +73,7 @@ export function PatientList() {
   };
 
   const handleEdit = (id: number, symptoms: string, priority: string) => {
-    updatePatient.mutate({ id, data: { symptoms, priority } });
+    updatePatient.mutate({ id, data: { symptoms, priority: priority as import("@workspace/api-client-react").Priority } });
   };
 
   const handleDelete = (id: number) => {

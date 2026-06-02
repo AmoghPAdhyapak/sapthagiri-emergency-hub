@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { StatsBar } from "@/components/StatsBar";
-import { AdmitPatientForm } from "@/components/AdmitPatientForm";
 import { PatientList } from "@/components/PatientList";
+import { EmergencySos } from "@/components/EmergencySos";
+import { PatientAnalysisPanel } from "@/components/PatientAnalysisPanel";
 import {
   Activity,
   Bot,
@@ -23,6 +24,7 @@ import {
   ClipboardList,
   CheckCircle2,
   X,
+  AlertOctagon,
 } from "lucide-react";
 import { AiChatPanel } from "@/components/AiChatPanel";
 import { DoctorVerificationModal } from "@/components/DoctorVerificationModal";
@@ -36,7 +38,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import defaultDoctors from "@/data/doctors.json";
 import logoUrl from "@/assets/logo.png";
 
-type DashView = "dashboard" | "account" | "dean";
+type DashView = "dashboard" | "analysis" | "account" | "dean";
 
 interface UserData {
   name: string;
@@ -102,10 +104,11 @@ function Sidebar({
   activeView: DashView;
   onNavigate: (v: DashView) => void;
 }) {
-  const navItems: { view: DashView; icon: React.ReactNode; label: string }[] = [
+  const navItems: { view: DashView; icon: React.ReactNode; label: string; accent?: string }[] = [
     { view: "dashboard", icon: <LayoutDashboard className="w-4 h-4" />, label: "Emergency Hub" },
-    { view: "account", icon: <User className="w-4 h-4" />, label: "My Account" },
-    { view: "dean", icon: <Settings className="w-4 h-4" />, label: "Dean Access" },
+    { view: "analysis",  icon: <Stethoscope className="w-4 h-4" />,    label: "Patient Analysis" },
+    { view: "account",   icon: <User className="w-4 h-4" />,           label: "My Account" },
+    { view: "dean",      icon: <Settings className="w-4 h-4" />,       label: "Dean Access" },
   ];
 
   return (
@@ -601,21 +604,16 @@ function PatientDashboardView() {
       <section>
         <StatsBar />
       </section>
-      <section className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        <div className="lg:col-span-1">
-          <AdmitPatientForm />
+      <section className="flex-1 flex flex-col bg-card rounded-lg border border-border shadow-md overflow-hidden">
+        <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
+          <h2 className="font-bold uppercase tracking-wider text-sm flex items-center">
+            <span className="w-2 h-2 bg-primary rounded-full mr-2 animate-pulse" />
+            Live Patient Monitoring
+          </h2>
+          <span className="text-xs font-mono text-muted-foreground uppercase">Auto-refresh: 5s</span>
         </div>
-        <div className="lg:col-span-3 flex flex-col bg-card rounded-lg border border-border shadow-md overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
-            <h2 className="font-bold uppercase tracking-wider text-sm flex items-center">
-              <span className="w-2 h-2 bg-primary rounded-full mr-2" />
-              Live Patient Monitoring
-            </h2>
-            <span className="text-xs font-mono text-muted-foreground uppercase">Auto-refresh: 5s</span>
-          </div>
-          <div className="p-4 flex-1 overflow-auto bg-background/50 relative">
-            <PatientList />
-          </div>
+        <div className="p-4 flex-1 overflow-auto bg-background/50 relative">
+          <PatientList />
         </div>
       </section>
     </div>
@@ -701,12 +699,14 @@ export default function Dashboard() {
         <Sidebar activeView={activeView} onNavigate={setActiveView} />
         <main className="flex-1 overflow-auto">
           {activeView === "dashboard" && <PatientDashboardView />}
-          {activeView === "account" && <AccountPanel user={user} />}
-          {activeView === "dean" && <DeanPanel />}
+          {activeView === "analysis"  && <PatientAnalysisPanel />}
+          {activeView === "account"   && <AccountPanel user={user} />}
+          {activeView === "dean"      && <DeanPanel />}
         </main>
       </div>
 
       <AiChatPanel isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <EmergencySos />
     </div>
   );
 }
