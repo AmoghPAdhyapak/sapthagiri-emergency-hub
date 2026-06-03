@@ -7,10 +7,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
+const ROLE_OPTIONS = [
+  "Doctor",
+  "Nurse",
+  "Medical Officer",
+  "Pharmacist",
+  "Receptionist",
+  "Lab Technician",
+  "Radiologist",
+  "Administrative Staff",
+  "Emergency Technician",
+];
+
 export default function StaffSignupPage() {
   const [, setLocation] = useLocation();
   const [name, setName] = useState("");
   const [staffId, setStaffId] = useState("");
+  const [role, setRole] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,7 +33,7 @@ export default function StaffSignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!name.trim() || !staffId.trim() || !password) {
+    if (!name.trim() || !staffId.trim() || !role || !password) {
       setError("All fields are required.");
       return;
     }
@@ -37,7 +50,7 @@ export default function StaffSignupPage() {
       const res = await fetch("/api/auth/staff/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), staffId: staffId.trim(), password }),
+        body: JSON.stringify({ name: name.trim(), staffId: staffId.trim(), role, password }),
       });
       const data = await res.json() as { error?: string; userId?: string };
       if (!res.ok) {
@@ -98,9 +111,10 @@ export default function StaffSignupPage() {
                     autoComplete="name"
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="staffId">
-                    Staff ID *{" "}
+                    Staff / Doctor ID *{" "}
                     <span className="text-xs text-muted-foreground font-normal">(e.g. DOC101 — becomes your login ID)</span>
                   </Label>
                   <Input
@@ -112,6 +126,22 @@ export default function StaffSignupPage() {
                     autoComplete="username"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role *</Label>
+                  <select
+                    id="role"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  >
+                    <option value="" disabled>Select your role…</option>
+                    {ROLE_OPTIONS.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="password">Password *</Label>
                   <Input
@@ -124,6 +154,7 @@ export default function StaffSignupPage() {
                     autoComplete="new-password"
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="confirm">Confirm Password *</Label>
                   <Input

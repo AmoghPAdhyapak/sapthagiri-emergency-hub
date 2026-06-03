@@ -14,6 +14,19 @@ import StaffSignupPage from "@/pages/StaffSignupPage";
 
 const queryClient = new QueryClient();
 
+// Bump this version string whenever auth data shape changes.
+// Any localStorage session from a prior version will be cleared automatically.
+const AUTH_VERSION = "v3";
+(function clearStaleAuth() {
+  try {
+    if (localStorage.getItem("sapthagiri_auth_version") !== AUTH_VERSION) {
+      localStorage.removeItem("sapthagiri_user");
+      localStorage.removeItem("sapthagiri_login_ts");
+      localStorage.setItem("sapthagiri_auth_version", AUTH_VERSION);
+    }
+  } catch { /* ignore */ }
+})();
+
 function getStoredUser(): { role?: string } | null {
   try {
     const s = localStorage.getItem("sapthagiri_user");

@@ -1,0 +1,130 @@
+IMPORTANT — FINAL STAFF DIRECTORY CORRECTION
+
+Do NOT redesign the website.
+Do NOT modify existing routing, layouts, AI assistant, emergency system, patient folders, or medical timeline.
+
+Only apply the following corrections carefully:
+
+---
+
+1. STAFF DIRECTORY CORRECTION
+
+---
+
+Inside:
+
+# Staff Information Directory
+
+currently multiple sample staff cards are visible.
+
+This is incorrect.
+
+The Staff Directory should ONLY display:
+
+# the currently logged-in staff member information
+
+Meaning:
+when a staff account signs up/login,
+their own information only should appear here.
+
+Example fields:
+
+* Staff Name
+* Doctor/Staff ID
+* Joined Date
+* Role
+
+DO NOT display:
+
+* fake sample doctors
+* hardcoded staff entries
+* demo users
+
+---
+
+2. STAFF SIGNUP DATA STORAGE
+
+---
+
+During Staff Signup,
+collect and save:
+
+* Full Name
+* Staff/Doctor ID
+* Role
+* Password
+
+This exact information should be saved and displayed inside:
+
+# Staff Information Directory
+
+Do NOT save staff information inside:
+
+# Patient Registration
+
+Keep both systems isolated.
+
+---
+
+3. RESET AUTHENTICATION DATA ONLY
+
+---
+
+After implementing these corrections:
+
+RESET ONLY:
+
+* stored staff sign-in/signup session data
+* stored patient sign-in/signup session data
+
+Meaning:
+clear/reset:
+
+* login sessions
+* authentication localStorage
+* signup test accounts
+
+BUT DO NOT:
+
+* delete patient folders
+* delete encounters
+* delete medical timeline
+* delete triage logic
+* delete UI systems
+* delete emergency workflow
+* modify backend structures
+* modify dashboard layout
+
+The purpose is:
+
+# clean manual testing after correction.
+
+---
+
+4. MOST IMPORTANT RULE
+
+---
+
+Except these corrections,
+DO NOT change anything else in the website.
+
+Keep:
+
+* existing UI
+* current workflows
+* emergency hub
+* AI assistant
+* routing
+* backend logic
+* patient systems
+* queue systems
+
+exactly as they currently are.
+
+Only fix:
+
+# Staff Directory behavior
+
+# Staff signup persistence
+
+# Authentication reset cleanup

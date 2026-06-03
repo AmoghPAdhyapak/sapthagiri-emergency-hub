@@ -89,13 +89,13 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ staffId: staffId.trim(), password: staffPassword }),
       });
-      const data = await res.json() as { error?: string; user?: { name: string; staffId: string } };
+      const data = await res.json() as { error?: string; user?: { name: string; staffId: string; role?: string; createdAt?: string } };
       if (!res.ok) {
         setStaffError(data.error ?? "Login failed.");
         setStaffLoading(false);
         return;
       }
-      localStorage.setItem("sapthagiri_user", JSON.stringify({ ...data.user, role: "staff" }));
+      localStorage.setItem("sapthagiri_user", JSON.stringify({ ...data.user, role: data.user?.role ?? "staff" }));
       localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
       setLocation("/dashboard");
     } catch {

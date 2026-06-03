@@ -16,7 +16,7 @@ export interface StaffUser {
   staffId: string;
   name: string;
   password: string;
-  role: "staff";
+  role: string;
   createdAt: string;
 }
 
@@ -108,7 +108,7 @@ router.post("/patient/login", (req, res) => {
 
 // POST /api/auth/staff/register
 router.post("/staff/register", (req, res) => {
-  const { name, staffId, password } = req.body || {};
+  const { name, staffId, password, role } = req.body || {};
   if (!name || !staffId || !password) {
     res.status(400).json({ error: "name, staffId, password required" });
     return;
@@ -123,7 +123,7 @@ router.post("/staff/register", (req, res) => {
     staffId: idClean,
     name: String(name).trim(),
     password: String(password),
-    role: "staff",
+    role: role ? String(role).trim() : "Staff",
     createdAt: new Date().toISOString(),
   };
   staffUsers.set(idClean, staff);

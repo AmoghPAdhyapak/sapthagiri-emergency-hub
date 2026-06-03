@@ -855,18 +855,18 @@ function PatientRegistrationPanel() {
 
 // ── Staff Directory Panel ─────────────────────────────────────────────────────
 function StaffDirectoryPanel() {
-  const [staffList, setStaffList] = useState<{ userId: string; staffId: string; name: string; role: string; createdAt: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [me, setMe] = useState<{ userId?: string; staffId?: string; name?: string; role?: string; createdAt?: string } | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/staff-directory")
-      .then((r) => r.json())
-      .then((data: { userId: string; staffId: string; name: string; role: string; createdAt: string }[]) => {
-        setStaffList(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    try {
+      const raw = localStorage.getItem("sapthagiri_user");
+      if (raw) setMe(JSON.parse(raw) as { userId?: string; staffId?: string; name?: string; role?: string; createdAt?: string });
+    } catch { /* ignore */ }
   }, []);
+
+  const joinedDate = me?.createdAt
+    ? new Date(me.createdAt).toLocaleDateString("en-US", { dateStyle: "medium" })
+    : "—";
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -875,50 +875,50 @@ function StaffDirectoryPanel() {
           <IdCard className="w-5 h-5 text-primary" /> Staff Information Directory
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Registered medical staff and their identity records. Credentials are never displayed.
+          Your registered identity record. Credentials are never displayed.
         </p>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="w-6 h-6 animate-spin mr-3" /> Loading directory...
-        </div>
-      ) : staffList.length === 0 ? (
+      {!me ? (
         <div className="text-center py-16">
           <IdCard className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-muted-foreground font-medium">No staff registered yet.</p>
-          <p className="text-sm text-muted-foreground/60 mt-1">Staff members who register via the Staff Portal appear here.</p>
+          <p className="text-muted-foreground font-medium">No session found.</p>
+          <p className="text-sm text-muted-foreground/60 mt-1">Please log in to view your staff record.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {staffList.map((staff) => (
-            <Card key={staff.staffId} className="border-border/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
-                      <ShieldCheck className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-foreground text-sm">{staff.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Joined {new Date(staff.createdAt).toLocaleDateString("en-US", { dateStyle: "medium" })}
-                      </p>
-                    </div>
+        <Card className="border-primary/20 shadow-[0_0_20px_hsl(180_70%_50%_/_0.06)]">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-5">
+              <div className="w-14 h-14 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-7 h-7 text-primary" />
+              </div>
+              <div className="flex-1 space-y-3">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Full Name</p>
+                  <p className="text-lg font-bold text-foreground">{me.name ?? "—"}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Staff / Doctor ID</p>
+                    <p className="font-mono text-sm text-primary font-semibold">{me.staffId ?? me.userId ?? "—"}</p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant="outline" className="font-mono text-xs text-primary border-primary/30">
-                      {staff.staffId}
-                    </Badge>
-                    <Badge variant="outline" className="text-xs text-muted-foreground">
-                      {staff.role}
-                    </Badge>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Role</p>
+                    <Badge variant="outline" className="text-xs text-muted-foreground border-border/60">{me.role ?? "Staff"}</Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Joined Date</p>
+                    <p className="text-sm text-foreground">{joinedDate}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Account Type</p>
+                    <Badge className="text-xs bg-primary/15 text-primary border-primary/30 border">Verified Staff</Badge>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
