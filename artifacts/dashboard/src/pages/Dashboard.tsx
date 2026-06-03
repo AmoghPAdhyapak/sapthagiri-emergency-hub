@@ -13,12 +13,16 @@ import { StatsBar } from "@/components/StatsBar";
 import { PatientList } from "@/components/PatientList";
 import { EmergencySos } from "@/components/EmergencySos";
 import { PatientAnalysisPanel } from "@/components/PatientAnalysisPanel";
+import { PatientsFolderPanel } from "@/components/PatientsFolderPanel";
+import { LiveReportsPanel } from "@/components/LiveReportsPanel";
+import { MedicalTimelinePanel } from "@/components/MedicalTimelinePanel";
 import {
   Activity,
   Bot,
   LogOut,
   LayoutDashboard,
   User,
+  Users,
   Settings,
   ShieldCheck,
   Plus,
@@ -52,7 +56,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import defaultDoctors from "@/data/doctors.json";
 import logoUrl from "@/assets/logo.png";
 
-type DashView = "dashboard" | "analysis" | "ai" | "account" | "dean" | "notes";
+type DashView = "dashboard" | "analysis" | "reports" | "folder" | "timeline" | "ai" | "account" | "dean" | "notes";
 
 interface UserData {
   name: string;
@@ -122,10 +126,13 @@ function Sidebar({
 }) {
   const navItems: { view: DashView; icon: React.ReactNode; label: string }[] = [
     { view: "dashboard", icon: <LayoutDashboard className="w-4 h-4" />, label: "Emergency Hub" },
-    { view: "analysis",  icon: <Stethoscope className="w-4 h-4" />,    label: "Patient Analysis" },
+    { view: "reports",   icon: <AlertTriangle className="w-4 h-4" />,   label: "Live Reports" },
+    { view: "folder",    icon: <Users className="w-4 h-4" />,           label: "Patients Folder" },
+    { view: "analysis",  icon: <Stethoscope className="w-4 h-4" />,     label: "AI Triage" },
+    { view: "timeline",  icon: <Activity className="w-4 h-4" />,        label: "Medical Timeline" },
     { view: "notes",     icon: <FileText className="w-4 h-4" />,        label: "Medical Notes" },
-    { view: "account",   icon: <User className="w-4 h-4" />,           label: "My Account" },
-    { view: "dean",      icon: <Settings className="w-4 h-4" />,       label: "Dean Access" },
+    { view: "account",   icon: <User className="w-4 h-4" />,            label: "Settings" },
+    { view: "dean",      icon: <Settings className="w-4 h-4" />,        label: "Dean Access" },
   ];
 
   return (
@@ -1029,6 +1036,9 @@ export default function Dashboard() {
         <main className="flex-1 overflow-auto">
           {activeView === "dashboard" && <PatientDashboardView />}
           {activeView === "analysis"  && <PatientAnalysisPanel />}
+          {activeView === "reports"   && <LiveReportsPanel />}
+          {activeView === "folder"    && <PatientsFolderPanel />}
+          {activeView === "timeline"  && <MedicalTimelinePanel />}
           {activeView === "notes"     && <MedicalNotesPanel />}
           {activeView === "ai"        && <AiFullPage />}
           {activeView === "account"   && <AccountPanel user={user} />}

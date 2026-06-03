@@ -81,15 +81,23 @@ export default function LandingPage() {
           <Button
             asChild
             size="lg"
+            className="text-base px-10 h-13 font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_25px_hsl(220_70%_50%_/_0.3)] hover:shadow-[0_0_35px_hsl(220_70%_50%_/_0.5)] transition-shadow"
+            data-testid="hero-patient-button"
+          >
+            <Link href="/signup">Patient Portal</Link>
+          </Button>
+          <Button
+            asChild
+            size="lg"
             className="text-base px-10 h-13 font-bold shadow-[0_0_25px_hsl(180_70%_50%_/_0.35)] hover:shadow-[0_0_35px_hsl(180_70%_50%_/_0.5)] transition-shadow"
             data-testid="hero-dashboard-button"
           >
-            <Link href="/login">Open Emergency Dashboard</Link>
+            <Link href="/login">Staff Portal</Link>
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="lg"
-            className="text-base px-10 h-13 border-border/60 hover:border-primary/50 hover:text-primary transition-colors"
+            className="text-base px-6 h-13 border-border/60 hover:border-primary/50 hover:text-primary transition-colors"
             onClick={scrollToAbout}
             data-testid="hero-learn-more-button"
           >

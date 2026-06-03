@@ -1,0 +1,130 @@
+import { Router } from "express";
+
+export interface PatientUser {
+  patientId: string;
+  name: string;
+  phone: string;
+  age: string;
+  email: string;
+  password: string;
+  role: "patient";
+  createdAt: string;
+}
+
+export interface StaffUser {
+  userId: string;
+  staffId: string;
+  name: string;
+  password: string;
+  role: "staff";
+  createdAt: string;
+}
+
+export const patientsFolder = new Map<string, PatientUser>();
+export const staffUsers = new Map<string, StaffUser>();
+
+function generatePatientId(): string {
+  return `Patient-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+const router = Router();
+
+// POST /api/auth/patient/register
+router.post("/patient/register", (req, res) => {
+  const { name, phone, age, email, password } = req.body || {};
+  if (!name || !phone || !password) {
+    res.status(400).json({ error: "name, phone, password required" });
+    return;
+  }
+  const phoneClean = String(phone).replace(/\D/g, "");
+  const existing = [...patientsFolder.values()].find((p) => p.phone === phoneClean);
+  if (existing) {
+    const { password: _, ...safe } = existing;
+    res.json({ success: true, patientId: existing.patientId, name: existing.name, user: safe });
+    return;
+  }
+  let patientId = generatePatientId();
+  while (patientsFolder.has(patientId)) patientId = generatePatientId();
+  const patient: PatientUser = {
+    patientId,
+    name: String(name).trim(),
+    phone: phoneClean,
+    age: String(age || ""),
+    email: String(email || ""),
+    password: String(password),
+    role: "patient",
+    createdAt: new Date().toISOString(),
+  };
+  patientsFolder.set(patientId, patient);
+  const { password: _, ...safe } = patient;
+  res.status(201).json({ success: true, patientId, name: patient.name, user: safe });
+});
+
+// POST /api/auth/patient/login
+router.post("/patient/login", (req, res) => {
+  const { phone, password } = req.body || {};
+  if (!phone || !password) {
+    res.status(400).json({ error: "phone and password required" });
+    return;
+  }
+  const phoneClean = String(phone).replace(/\D/g, "");
+  const patient = [...patientsFolder.values()].find((p) => p.phone === phoneClean);
+  if (!patient) {
+    res.status(401).json({ error: "No patient account found for this phone number. Please register first." });
+    return;
+  }
+  if (patient.password !== String(password)) {
+    res.status(401).json({ error: "Incorrect password." });
+    return;
+  }
+  const { password: _, ...safe } = patient;
+  res.json({ success: true, user: safe });
+});
+
+// POST /api/auth/staff/register
+router.post("/staff/register", (req, res) => {
+  const { name, staffId, password } = req.body || {};
+  if (!name || !staffId || !password) {
+    res.status(400).json({ error: "name, staffId, password required" });
+    return;
+  }
+  const idClean = String(staffId).trim().toUpperCase();
+  if (staffUsers.has(idClean)) {
+    res.status(409).json({ error: "Staff ID already registered. Please choose a different ID or log in." });
+    return;
+  }
+  const staff: StaffUser = {
+    userId: idClean,
+    staffId: idClean,
+    name: String(name).trim(),
+    password: String(password),
+    role: "staff",
+    createdAt: new Date().toISOString(),
+  };
+  staffUsers.set(idClean, staff);
+  const { password: _, ...safe } = staff;
+  res.status(201).json({ success: true, userId: idClean, name: staff.name, user: safe });
+});
+
+// POST /api/auth/staff/login
+router.post("/staff/login", (req, res) => {
+  const { staffId, password } = req.body || {};
+  if (!staffId || !password) {
+    res.status(400).json({ error: "staffId and password required" });
+    return;
+  }
+  const idClean = String(staffId).trim().toUpperCase();
+  const staff = staffUsers.get(idClean);
+  if (!staff) {
+    res.status(401).json({ error: "No staff account found for this Staff ID." });
+    return;
+  }
+  if (staff.password !== String(password)) {
+    res.status(401).json({ error: "Incorrect password." });
+    return;
+  }
+  const { password: _, ...safe } = staff;
+  res.json({ success: true, user: safe });
+});
+
+export default router;

@@ -6,22 +6,40 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
+import PatientPortal from "@/pages/PatientPortal";
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import SignUpPage from "@/pages/SignUpPage";
+import StaffSignupPage from "@/pages/StaffSignupPage";
 
 const queryClient = new QueryClient();
 
-function AuthGuard({ children }: { children: ReactNode }) {
-  const [, setLocation] = useLocation();
-  
-  useEffect(() => {
-    const user = localStorage.getItem("sapthagiri_user");
-    if (!user) {
-      setLocation("/login");
-    }
-  }, [setLocation]);
+function getStoredUser(): { role?: string } | null {
+  try {
+    const s = localStorage.getItem("sapthagiri_user");
+    return s ? (JSON.parse(s) as { role?: string }) : null;
+  } catch {
+    return null;
+  }
+}
 
+function StaffGuard({ children }: { children: ReactNode }) {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user) { setLocation("/login"); return; }
+    if (user.role === "patient") { setLocation("/patient"); return; }
+  }, [setLocation]);
+  return <>{children}</>;
+}
+
+function PatientGuard({ children }: { children: ReactNode }) {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user) { setLocation("/login"); return; }
+    if (user.role === "staff" || !user.role) { setLocation("/dashboard"); return; }
+  }, [setLocation]);
   return <>{children}</>;
 }
 
@@ -31,10 +49,16 @@ function Router() {
       <Route path="/" component={LandingPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/signup" component={SignUpPage} />
+      <Route path="/staff/signup" component={StaffSignupPage} />
       <Route path="/dashboard">
-        <AuthGuard>
+        <StaffGuard>
           <Dashboard />
-        </AuthGuard>
+        </StaffGuard>
+      </Route>
+      <Route path="/patient">
+        <PatientGuard>
+          <PatientPortal />
+        </PatientGuard>
       </Route>
       <Route component={NotFound} />
     </Switch>
@@ -44,7 +68,6 @@ function Router() {
 function App() {
   const [splashDone, setSplashDone] = useState(false);
 
-  // Force dark mode for control room app
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);

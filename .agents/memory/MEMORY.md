@@ -1,0 +1,2 @@
+- [Dual portal auth](dual-portal-auth.md) — patient vs staff role stored in sapthagiri_user.role; missing role defaults to staff for backward compat.
+- [RED triage override](red-triage-override.md) — backend enforces RED keywords regardless of doctor selection; RED encounters locked from deletion.
