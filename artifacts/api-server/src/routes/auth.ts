@@ -27,6 +27,14 @@ function generatePatientId(): string {
   return `Patient-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
+/** Normalize phone to 10-digit local number, stripping country code prefixes */
+function normalizePhone(raw: string): string {
+  const d = String(raw).replace(/\D/g, "");
+  if (d.length === 12 && d.startsWith("91")) return d.slice(2);
+  if (d.length === 11 && d.startsWith("0")) return d.slice(1);
+  return d;
+}
+
 const router = Router();
 
 // POST /api/auth/patient/register
@@ -36,7 +44,7 @@ router.post("/patient/register", (req, res) => {
     res.status(400).json({ error: "name, phone, password required" });
     return;
   }
-  const phoneClean = String(phone).replace(/\D/g, "");
+  const phoneClean = normalizePhone(phone);
   const existing = [...patientsFolder.values()].find((p) => p.phone === phoneClean);
   if (existing) {
     const { password: _, ...safe } = existing;
@@ -90,7 +98,7 @@ router.post("/patient/login", (req, res) => {
       res.status(400).json({ error: "phone or name required" });
       return;
     }
-    const phoneClean = String(phone).replace(/\D/g, "");
+    const phoneClean = normalizePhone(phone);
     patient = [...patientsFolder.values()].find((p) => p.phone === phoneClean);
     if (!patient) {
       res.status(401).json({ error: "No patient account found for this phone number. Please register first." });

@@ -27,6 +27,21 @@ export default function LoginPage() {
   const [staffError, setStaffError] = useState("");
   const [staffLoading, setStaffLoading] = useState(false);
 
+  /** Normalize to 10-digit local number (strips +91 / 91 / 0 prefix) */
+  const normPhone = (p: string) => {
+    const d = p.replace(/\D/g, "");
+    if (d.length === 12 && d.startsWith("91")) return d.slice(2);
+    if (d.length === 11 && d.startsWith("0")) return d.slice(1);
+    return d;
+  };
+
+  /** True when cached localStorage profile matches what the user typed */
+  const cachedProfileMatches = (cached: { phone?: string; name?: string }) => {
+    if (patLoginMode === "PHONE_OTP")
+      return normPhone(cached.phone ?? "") === normPhone(patIdentifier);
+    return cached.name?.toLowerCase().trim() === patIdentifier.toLowerCase().trim();
+  };
+
   const handlePatientLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setPatError("");
@@ -51,22 +66,61 @@ export default function LoginPage() {
         error?: string;
         user?: { name: string; patientId: string; phone: string; email: string; age: string };
       };
+
       if (!res.ok) {
+        // ── Self-healing: server lost in-memory data after a restart ──
+        // Only trigger when backend says "not found" (NOT wrong password).
+        if (data.error?.includes("No patient account found")) {
+          try {
+            const stored = localStorage.getItem("sapthagiri_user");
+            if (stored) {
+              const cached = JSON.parse(stored) as {
+                name?: string; phone?: string; age?: string;
+                email?: string; patientId?: string; role?: string;
+              };
+              if (cached.role === "patient" && cachedProfileMatches(cached)) {
+                // Re-register with the backend using cached profile + entered password
+                const regRes = await fetch("/api/auth/patient/register", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    name: cached.name ?? patIdentifier.trim(),
+                    phone: cached.phone ?? (patLoginMode === "PHONE_OTP" ? patIdentifier.trim() : ""),
+                    age: cached.age ?? "",
+                    email: cached.email ?? "",
+                    password: patPassword,
+                  }),
+                });
+                if (regRes.ok) {
+                  const regData = await regRes.json() as { patientId?: string; name?: string };
+                  const refreshed = {
+                    ...cached,
+                    patientId: regData.patientId ?? cached.patientId,
+                    role: "patient",
+                  };
+                  localStorage.setItem("sapthagiri_user", JSON.stringify(refreshed));
+                  localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
+                  setLocation("/patient");
+                  return;
+                }
+              }
+            }
+          } catch { /* ignore self-heal errors, fall through to normal error */ }
+        }
         setPatError(data.error ?? "Login failed.");
         return;
       }
+
       localStorage.setItem("sapthagiri_user", JSON.stringify({ ...data.user, role: "patient" }));
       localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
       setLocation("/patient");
     } catch {
-      // Fallback: check localStorage if backend is down
+      // Fallback: check localStorage if backend is completely down
       try {
         const stored = localStorage.getItem("sapthagiri_user");
         if (stored) {
-          const u = JSON.parse(stored) as { phone?: string; name?: string };
-          const matchPhone = patLoginMode === "PHONE_OTP" && u.phone?.replace(/\D/g, "") === patIdentifier.replace(/\D/g, "");
-          const matchName  = patLoginMode === "NAME_PASSWORD" && u.name?.toLowerCase() === patIdentifier.toLowerCase().trim();
-          if (matchPhone || matchName) {
+          const u = JSON.parse(stored) as { phone?: string; name?: string; role?: string };
+          if (u.role === "patient" && cachedProfileMatches(u)) {
             setLocation("/patient");
             return;
           }
