@@ -46,6 +46,9 @@ import {
   IdCard,
   AlertOctagon,
   MessageSquare,
+  ArrowLeft,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { AiChatPanel } from "@/components/AiChatPanel";
 import { DoctorVerificationModal } from "@/components/DoctorVerificationModal";
@@ -123,101 +126,138 @@ function Sidebar({
   activeView,
   onNavigate,
   onOpenChat,
+  collapsed,
+  onToggleCollapse,
 }: {
   activeView: DashView;
   onNavigate: (v: DashView) => void;
   onOpenChat: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }) {
-  const queueItems: { view: DashView; icon: React.ReactNode; label: string; activeColor: string; dotColor: string }[] = [
+  const queueItems: { view: DashView; icon: React.ReactNode; label: string; activeColor: string; dotColor: string; title: string }[] = [
     {
       view: "dashboard",
-      icon: <ShieldAlert className="w-4 h-4" />,
+      icon: <ShieldAlert className="w-4 h-4 shrink-0" />,
       label: "Emergency Hub",
+      title: "Emergency Hub",
       activeColor: "bg-red-500/15 text-red-300 border border-red-500/30",
       dotColor: "bg-red-500",
     },
     {
       view: "observation",
-      icon: <Eye className="w-4 h-4" />,
+      icon: <Eye className="w-4 h-4 shrink-0" />,
       label: "Observation Queue",
+      title: "Observation Queue",
       activeColor: "bg-yellow-500/15 text-yellow-300 border border-yellow-500/30",
       dotColor: "bg-yellow-500",
     },
     {
       view: "general",
-      icon: <Activity className="w-4 h-4" />,
+      icon: <Activity className="w-4 h-4 shrink-0" />,
       label: "General Monitoring",
+      title: "General Monitoring",
       activeColor: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30",
       dotColor: "bg-emerald-500",
     },
   ];
 
   const mgmtItems: { view: DashView; icon: React.ReactNode; label: string }[] = [
-    { view: "patientreg", icon: <UserPlus className="w-4 h-4" />,    label: "Patient Registration" },
-    { view: "folder",     icon: <FolderSearch className="w-4 h-4" />, label: "Patients Folder" },
-    { view: "staffdir",   icon: <IdCard className="w-4 h-4" />,      label: "Staff Directory" },
-    { view: "timeline",   icon: <ClipboardList className="w-4 h-4" />,label: "Medical Timeline" },
-    { view: "notes",      icon: <FileText className="w-4 h-4" />,     label: "Medical Notes" },
-    { view: "account",    icon: <User className="w-4 h-4" />,         label: "Settings" },
-    { view: "dean",       icon: <Settings className="w-4 h-4" />,     label: "Dean Access" },
+    { view: "patientreg", icon: <UserPlus className="w-4 h-4 shrink-0" />,    label: "Patient Registration" },
+    { view: "folder",     icon: <FolderSearch className="w-4 h-4 shrink-0" />, label: "Patients Folder" },
+    { view: "staffdir",   icon: <IdCard className="w-4 h-4 shrink-0" />,      label: "Staff Directory" },
+    { view: "timeline",   icon: <ClipboardList className="w-4 h-4 shrink-0" />,label: "Medical Timeline" },
+    { view: "notes",      icon: <FileText className="w-4 h-4 shrink-0" />,     label: "Medical Notes" },
+    { view: "account",    icon: <User className="w-4 h-4 shrink-0" />,         label: "Settings" },
+    { view: "dean",       icon: <Settings className="w-4 h-4 shrink-0" />,     label: "Dean Access" },
   ];
 
   return (
-    <aside className="w-56 shrink-0 border-r border-border bg-card flex flex-col py-4 overflow-y-auto">
-      {/* Logo + brand */}
-      <div className="px-4 mb-5 flex items-center gap-2.5">
-        <img src={logoUrl} alt="Sapthagiri NPS" className="h-9 w-9 object-contain shrink-0" />
-        <div className="min-w-0">
-          <p className="text-xs font-black text-foreground leading-tight truncate">Sapthagiri NPS</p>
-          <p className="text-[9px] text-muted-foreground uppercase tracking-widest truncate">Clinical Network</p>
-        </div>
+    <aside
+      className={`shrink-0 border-r border-border bg-card flex flex-col py-4 overflow-y-auto overflow-x-hidden transition-[width] duration-200 ease-in-out ${
+        collapsed ? "w-[52px]" : "w-56"
+      }`}
+    >
+      {/* Logo + brand + collapse toggle */}
+      <div className={`px-2 mb-5 flex items-center ${collapsed ? "justify-center" : "gap-2 pl-3"}`}>
+        {!collapsed && (
+          <img src={logoUrl} alt="Sapthagiri NPS" className="h-8 w-8 object-contain shrink-0" />
+        )}
+        {!collapsed && (
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-black text-foreground leading-tight truncate">Sapthagiri NPS</p>
+            <p className="text-[9px] text-muted-foreground uppercase tracking-widest truncate">Clinical Network</p>
+          </div>
+        )}
+        <button
+          onClick={onToggleCollapse}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+        >
+          {collapsed
+            ? <PanelLeftOpen className="w-4 h-4" />
+            : <PanelLeftClose className="w-4 h-4" />}
+        </button>
       </div>
 
-      {/* Queue Sections */}
-      <div className="px-4 mb-2">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Live Queues</p>
-      </div>
-      <nav className="flex flex-col gap-1 px-2">
-        {queueItems.map(({ view, icon, label, activeColor, dotColor }) => (
+      {/* Queue section label */}
+      {!collapsed && (
+        <div className="px-4 mb-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Live Queues</p>
+        </div>
+      )}
+      {collapsed && <div className="mx-auto my-1 w-5 border-t border-border" />}
+
+      <nav className="flex flex-col gap-1 px-1.5">
+        {queueItems.map(({ view, icon, label, title, activeColor, dotColor }) => (
           <button
             key={view}
             onClick={() => onNavigate(view)}
             data-testid={`nav-${view}`}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left ${
+            title={collapsed ? title : undefined}
+            className={`w-full flex items-center rounded-md text-sm font-medium transition-colors ${
+              collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5 text-left"
+            } ${
               activeView === view
                 ? activeColor
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
             }`}
           >
             {icon}
-            <span className="flex-1 text-left">{label}</span>
-            {activeView !== view && (
+            {!collapsed && <span className="flex-1 text-left">{label}</span>}
+            {!collapsed && activeView !== view && (
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
             )}
           </button>
         ))}
       </nav>
 
-      <div className="mx-4 my-3 border-t border-border" />
+      <div className="mx-2 my-3 border-t border-border" />
 
-      {/* Management */}
-      <div className="px-4 mb-2">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Management</p>
-      </div>
-      <nav className="flex flex-col gap-1 px-2 flex-1">
+      {/* Management section label */}
+      {!collapsed && (
+        <div className="px-4 mb-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Management</p>
+        </div>
+      )}
+
+      <nav className="flex flex-col gap-1 px-1.5 flex-1">
         {mgmtItems.map(({ view, icon, label }) => (
           <button
             key={view}
             onClick={() => onNavigate(view)}
             data-testid={`nav-${view}`}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left ${
+            title={collapsed ? label : undefined}
+            className={`w-full flex items-center rounded-md text-sm font-medium transition-colors ${
+              collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5 text-left"
+            } ${
               activeView === view
                 ? "bg-primary/15 text-primary border border-primary/20"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
             }`}
           >
             {icon}
-            {label}
+            {!collapsed && label}
           </button>
         ))}
 
@@ -225,22 +265,25 @@ function Sidebar({
         <button
           onClick={() => onNavigate("ai")}
           data-testid="nav-ai-assistant"
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left mt-1 ${
+          title={collapsed ? "AI Assistant" : undefined}
+          className={`w-full flex items-center rounded-md text-sm font-medium transition-colors mt-1 ${
+            collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5 text-left"
+          } ${
             activeView === "ai"
               ? "bg-primary/15 text-primary border border-primary/20"
               : "text-primary border border-primary/20 bg-primary/10 hover:bg-primary/20 shadow-[0_0_12px_hsl(180_70%_50%_/_0.15)]"
           }`}
         >
-          <Bot className={`w-4 h-4 ${activeView !== "ai" ? "animate-pulse" : ""}`} />
-          <span>AI Assistant</span>
-          <span className="ml-auto flex h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
+          <Bot className={`w-4 h-4 shrink-0 ${activeView !== "ai" ? "animate-pulse" : ""}`} />
+          {!collapsed && <span>AI Assistant</span>}
+          {!collapsed && <span className="ml-auto flex h-1.5 w-1.5 rounded-full bg-primary animate-ping" />}
         </button>
       </nav>
 
-      <div className="px-4 mt-4 pt-4 border-t border-border">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[10px] font-mono text-emerald-500 uppercase tracking-wider">System Live</span>
+      <div className="px-2 mt-4 pt-4 border-t border-border">
+        <div className={`flex items-center gap-2 ${collapsed ? "justify-center" : ""}`}>
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          {!collapsed && <span className="text-[10px] font-mono text-emerald-500 uppercase tracking-wider">System Live</span>}
         </div>
       </div>
     </aside>
@@ -1180,6 +1223,7 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [user, setUser] = useState<UserData | null>(null);
   const [activeView, setActiveView] = useState<DashView>("dashboard");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("sapthagiri_user");
@@ -1217,8 +1261,16 @@ export default function Dashboard() {
   return (
     <div className="h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">
       {/* Header */}
-      <header className="border-b border-border bg-card px-6 py-3 flex items-center justify-between shadow-sm shrink-0">
+      <header className="border-b border-border bg-card px-4 py-3 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setLocation("/")}
+            title="Back to Home"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div className="h-5 w-px bg-border" />
           <div className="bg-red-500/20 p-2 rounded-md">
             <Activity className="w-5 h-5 text-red-500" />
           </div>
@@ -1267,7 +1319,13 @@ export default function Dashboard() {
 
       {/* Body: Sidebar + Main */}
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar activeView={activeView} onNavigate={setActiveView} onOpenChat={() => setIsChatOpen(true)} />
+        <Sidebar
+          activeView={activeView}
+          onNavigate={setActiveView}
+          onOpenChat={() => setIsChatOpen(true)}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+        />
         <main className="flex-1 overflow-auto">
           {activeView === "dashboard"   && <LiveReportsPanel />}
           {activeView === "observation" && <ObservationQueuePanel />}
