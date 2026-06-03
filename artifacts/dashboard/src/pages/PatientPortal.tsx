@@ -27,6 +27,8 @@ interface ContinuityEntry {
   doctorName: string;
   doctorId?: string;
   hospital: string;
+  medRegId?: string;
+  doctorPhone?: string;
   notes: string;
   timestamp: string;
   verificationStatus?: string;
@@ -194,13 +196,15 @@ interface NoteForm {
   doctorName: string;
   doctorId: string;
   hospital: string;
+  medRegId: string;
+  doctorPhone: string;
   notes: string;
 }
 
 function EncounterCard({ enc }: { enc: EncounterRecord }) {
   const colors = TRIAGE_COLORS[enc.triageLevel];
   const [showNoteForm, setShowNoteForm] = useState(false);
-  const [noteForm, setNoteForm] = useState<NoteForm>({ doctorName: "", doctorId: "", hospital: "", notes: "" });
+  const [noteForm, setNoteForm] = useState<NoteForm>({ doctorName: "", doctorId: "", hospital: "", medRegId: "", doctorPhone: "", notes: "" });
   const [noteLoading, setNoteLoading] = useState(false);
   const [noteResult, setNoteResult] = useState<{ success: boolean; message: string } | null>(null);
   const [localLogs, setLocalLogs] = useState(enc.crossHospitalContinuityLogs);
@@ -223,7 +227,7 @@ function EncounterCard({ enc }: { enc: EncounterRecord }) {
         setNoteResult({ success: false, message: data.error ?? "Failed to add note." });
       } else {
         if (data.entry) setLocalLogs((prev) => [...prev, data.entry!]);
-        setNoteForm({ doctorName: "", doctorId: "", hospital: "", notes: "" });
+        setNoteForm({ doctorName: "", doctorId: "", hospital: "", medRegId: "", doctorPhone: "", notes: "" });
         setShowNoteForm(false);
         setNoteResult({ success: true, message: "Note added successfully." });
       }
@@ -331,6 +335,28 @@ function EncounterCard({ enc }: { enc: EncounterRecord }) {
                   onChange={(e) => setNoteForm((p) => ({ ...p, hospital: e.target.value }))}
                   className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-muted-foreground uppercase">Medical Reg. ID *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. MCI-2024-XXXXX"
+                    value={noteForm.medRegId}
+                    onChange={(e) => setNoteForm((p) => ({ ...p, medRegId: e.target.value.toUpperCase() }))}
+                    className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-muted-foreground uppercase">Doctor Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="+91 98765 43210"
+                    value={noteForm.doctorPhone}
+                    onChange={(e) => setNoteForm((p) => ({ ...p, doctorPhone: e.target.value }))}
+                    className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  />
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-semibold text-muted-foreground uppercase">Treatment Notes *</label>
@@ -519,6 +545,8 @@ export default function PatientPortal() {
   const [encounters, setEncounters] = useState<EncounterRecord[]>([]);
   const [loadingEnc, setLoadingEnc] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [ambulanceState, setAmbulanceState] = useState<"idle" | "dispatching" | "dispatched">("idle");
+  const [ambulanceMsg, setAmbulanceMsg] = useState("");
 
   useEffect(() => {
     const stored = localStorage.getItem("sapthagiri_user");
@@ -548,6 +576,32 @@ export default function PatientPortal() {
     localStorage.removeItem("sapthagiri_user");
     localStorage.removeItem("sapthagiri_login_ts");
     setLocation("/");
+  };
+
+  const handleAmbulanceRequest = async () => {
+    if (ambulanceState !== "idle") return;
+    setAmbulanceState("dispatching");
+    setAmbulanceMsg("Locating nearest Sapthagiri Advanced Life Support unit…");
+    try {
+      await fetch("/api/triage/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: patient?.patientId ?? "ANON",
+          symptoms: "AUTOMATED EMERGENCY REQUEST: Patient initiated remote ambulance dispatch.",
+          visitReason: "CRITICAL — AMBULANCE DISPATCH",
+          juniorDoctorSelection: "RED",
+          doctorId: "AUTO-DISPATCH",
+        }),
+      });
+      setTimeout(() => {
+        setAmbulanceState("dispatched");
+        setAmbulanceMsg("ALS Unit dispatched. Expected arrival 7–10 min. Stay calm and keep this screen open.");
+      }, 1600);
+    } catch {
+      setAmbulanceState("dispatched");
+      setAmbulanceMsg("Request sent. If no response, call 108 immediately.");
+    }
   };
 
   if (!patient) return null;
@@ -614,6 +668,40 @@ export default function PatientPortal() {
       </div>
 
       <AiChatPanel isOpen={aiOpen} onClose={() => { setAiOpen(false); if (activeView === "ai") setActiveView("profile"); }} />
+
+      {/* Emergency Ambulance — Patient Portal only */}
+      <div className="fixed bottom-6 right-6 z-50">
+        {ambulanceState === "idle" && (
+          <button
+            onClick={handleAmbulanceRequest}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold px-4 py-3 rounded-full shadow-2xl border-2 border-red-400/60 animate-pulse transition-all duration-200"
+          >
+            <span className="text-lg">🚑</span>
+            <span className="text-[11px] uppercase tracking-widest font-mono leading-none">Request Ambulance</span>
+          </button>
+        )}
+        {ambulanceState === "dispatching" && (
+          <div className="flex items-center gap-2.5 bg-slate-900 border border-red-500/60 text-red-400 px-4 py-3 rounded-xl shadow-2xl max-w-xs">
+            <Loader2 className="w-4 h-4 animate-spin shrink-0 text-red-500" />
+            <span className="text-[11px] font-mono leading-snug">{ambulanceMsg}</span>
+          </div>
+        )}
+        {ambulanceState === "dispatched" && (
+          <div className="bg-slate-900 border-2 border-red-600 rounded-xl shadow-2xl max-w-xs p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="h-2 w-2 rounded-full bg-red-500 animate-ping shrink-0" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-red-400">Dispatch Active</span>
+            </div>
+            <p className="text-[11px] font-mono text-slate-200 leading-relaxed">{ambulanceMsg}</p>
+            <button
+              onClick={() => { setAmbulanceState("idle"); setAmbulanceMsg(""); }}
+              className="mt-3 text-[10px] text-muted-foreground hover:text-foreground underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -26,6 +26,8 @@ interface ContinuityEntry {
   doctorName: string;
   doctorId: string;
   hospital: string;
+  medRegId?: string;
+  doctorPhone?: string;
   notes: string;
   timestamp: string;
 }
@@ -73,6 +75,8 @@ export function PatientsFolderPanel() {
   const [contEncounterId, setContEncounterId] = useState("");
   const [contDoctor, setContDoctor] = useState("");
   const [contHospital, setContHospital] = useState("");
+  const [contMedRegId, setContMedRegId] = useState("");
+  const [contPhone, setContPhone] = useState("");
   const [contNotes, setContNotes] = useState("");
   const [contLoading, setContLoading] = useState(false);
   const [contMsg, setContMsg] = useState("");
@@ -149,6 +153,8 @@ export function PatientsFolderPanel() {
           doctorName: contDoctor,
           doctorId: contDoctor,
           hospital: contHospital,
+          medRegId: contMedRegId,
+          doctorPhone: contPhone,
           notes: contNotes,
         }),
       });
@@ -156,6 +162,8 @@ export function PatientsFolderPanel() {
       setContMsg("✓ Continuity note added.");
       setContDoctor("");
       setContHospital("");
+      setContMedRegId("");
+      setContPhone("");
       setContNotes("");
       if (selectedPatient) await openPatient(selectedPatient.patientId);
     } catch {
@@ -355,6 +363,27 @@ export function PatientsFolderPanel() {
                       value={contHospital}
                       onChange={(e) => setContHospital(e.target.value)}
                       className="bg-background/50 mt-1 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Medical Reg. ID *</Label>
+                    <Input
+                      placeholder="e.g. MCI-2024-XXXXX"
+                      value={contMedRegId}
+                      onChange={(e) => setContMedRegId(e.target.value.toUpperCase())}
+                      className="bg-background/50 mt-1 text-sm font-mono"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Doctor Phone</Label>
+                    <Input
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                      value={contPhone}
+                      onChange={(e) => setContPhone(e.target.value)}
+                      className="bg-background/50 mt-1 text-sm font-mono"
                     />
                   </div>
                 </div>

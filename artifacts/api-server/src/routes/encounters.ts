@@ -6,6 +6,8 @@ export interface ContinuityEntry {
   doctorName: string;
   doctorId: string;
   hospital: string;
+  medRegId: string;
+  doctorPhone: string;
   notes: string;
   timestamp: string;
   verificationStatus: string;
@@ -107,7 +109,7 @@ router.get("/encounters/:id", (req, res) => {
 router.post("/encounters/:id/continuity", (req, res) => {
   const enc = encounters.get(req.params.id);
   if (!enc) { res.status(404).json({ error: "Encounter not found" }); return; }
-  const { doctorName, doctorId, hospital, notes } = req.body || {};
+  const { doctorName, doctorId, hospital, medRegId, doctorPhone, notes } = req.body || {};
   if (!doctorName || !notes) {
     res.status(400).json({ error: "doctorName and notes required" });
     return;
@@ -117,6 +119,8 @@ router.post("/encounters/:id/continuity", (req, res) => {
     doctorName: String(doctorName),
     doctorId: String(doctorId || ""),
     hospital: String(hospital || ""),
+    medRegId: String(medRegId || ""),
+    doctorPhone: String(doctorPhone || ""),
     notes: String(notes),
     timestamp: new Date().toISOString(),
     verificationStatus: "Unverified",
