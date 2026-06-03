@@ -1,2 +1,4 @@
 - [Dual portal auth](dual-portal-auth.md) — patient vs staff role stored in sapthagiri_user.role; missing role defaults to staff for backward compat.
 - [RED triage override](red-triage-override.md) — backend enforces RED keywords regardless of doctor selection; RED encounters locked from deletion.
+- [Queue tri-separation](queue-tri-separation.md) — staff sidebar splits into Emergency Hub (RED), Observation Queue (YELLOW), General Monitoring (GREEN) as distinct nav items.
+- [Emergency hub lifecycle](emergency-hub-lifecycle.md) — PATCH /api/triage/emergency-hub/action with 3 outcomes: OUT_OF_DANGER→GREEN, UNDER_OBSERVATION→YELLOW, DECEASED→archived. Requires doctorId.

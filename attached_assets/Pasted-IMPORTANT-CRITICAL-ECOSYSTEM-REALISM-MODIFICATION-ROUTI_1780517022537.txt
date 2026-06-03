@@ -1,0 +1,122 @@
+IMPORTANT — CRITICAL ECOSYSTEM REALISM MODIFICATION & ROUTING FIXES
+
+Do NOT redesign the entire project architecture.
+Do NOT break current role isolation, existing persistence, or the core RED alert escalation rules.
+Carefully integrate these workflow realism updates directly into the existing Replit/Lovable application views and backend controllers.
+
+MAIN ARCHITECTURAL CHANGE OVERVIEW:
+
+* Staff Sidebar Update: Remove "AI Triage" from staff navigation. Replace it with a dedicated "Patient Registration" panel.
+* Identity Separation: Ensure Patient Registration handles only patient creation (Full Name, Phone, Age, Optional Email, Password). Never store staff credentials here. Create a distinct "Staff Information" directory view for staff registries, doctor identities, and staff IDs.
+* Patient Login Flexibility: Update the Patient Login form component to accept EITHER (Option 1: Phone Number + OTP) OR (Option 2: Patient Name + Password) to accommodate rural accessibility limits.
+* Emergency Button Relocation: Remove the global Emergency Button from the staff dashboard completely. Relocate it EXCLUSIVELY into the Patient Interface layer so emergency escalation originates directly from the patient context.
+* Mandatory Continuity Notes: Inside the Patient Account Interface, render a mandatory "Doctor Medical Notes / Cross-Hospital Observations" timeline section. It must accept an inline form layout (Doctor Name, Doctor ID validation, Workplace/Hospital, Treatment Notes, Timestamp, Verification status) that appends directly into the patient's individual history timeline.
+* Queue Tri-Separation & Lifecycle: Split the tracking screen into three distinct visual sections stacked vertically in the sidebar navigation:
+
+  1. Emergency Hub (Displays ONLY Critical RED Emergency Patients).
+  2. Observation Queue (Displays YELLOW Triage Patients).
+  3. General Monitoring (Displays GREEN Triage Patients).
+* Emergency Hub Status Actions & Discharges: Within the Emergency Hub, allow authenticated doctors with valid IDs to open status controls on a RED patient row. Provide exactly 3 option markers: [Out of Danger], [Under Observation], or [Deceased]. If "Out of Danger" or "Under Observation" is selected, requiring pressing a "Completed" button clears them from the Emergency Hub. If "Deceased" is selected, permanently archive/remove the record upon confirmation.
+
+==============================================================================
+
+TECHNICAL CODE EXECUTION GUIDE FOR THE COMPILER
+
+==============================================================================
+
+1. DUAL-MODE PATIENT AUTHENTICATION UTILITY (Auth Validation Logic)
+
+Update your client-side authentication controller to process both structural evaluation paths:
+
+```javascript
+const handlePatientLogin = (loginPayload) => {
+  const { identifier, credential, loginType } = loginPayload; // identifier = phone or name
+  
+  return Array.from(DB.users.values()).find(user => {
+    if (user.role !== "patient") return false;
+    if (loginType === "PHONE_OTP") {
+      return user.phone === identifier; // Simulated successful OTP checkpoint pass
+    } else {
+      return user.name.toLowerCase() === identifier.toLowerCase() && user.password === credential;
+    }
+  });
+};
+```
+
+EMERGENCY HUB LIFE-CYCLE & STATUS CONTROLLERS (Backend Router Handler)
+
+Replace or expand your status patch routing endpoint to enforce the 3-tier clinical outcome metrics and conditional clearing logic:
+
+```javascript
+app.patch('/api/triage/emergency-hub/action', (req, res) => {
+  const { encounterId, doctorId, statusAction } = req.body; // statusAction EXPECTS: "OUT_OF_DANGER" | "UNDER_OBSERVATION" | "DECEASED"
+
+  if (!doctorId) {
+    return res.status(403).json({ success: false, error: "Access Denied. Valid Licensed Doctor ID required." });
+  }
+
+  const activeEncounter = DB.encounters.get(encounterId);
+  if (!activeEncounter) {
+    return res.status(404).json({ success: false, error: "Emergency record reference not located." });
+  }
+
+  // Handle systemic lifecycle cascades
+  if (statusAction === "OUT_OF_DANGER") {
+    activeEncounter.triageLevel = "GREEN"; // Move patient record down to General Monitoring view
+  } else if (statusAction === "UNDER_OBSERVATION") {
+    activeEncounter.triageLevel = "YELLOW"; // Move patient record to Observation Queue view
+  } else if (statusAction === "DECEASED") {
+    activeEncounter.isArchived = true;
+    activeEncounter.terminationTimestamp = new Date().toISOString();
+  }
+
+  // Complete action removes the patient from the live, high-intensity Emergency Hub queue grid
+  DB.encounters.set(encounterId, activeEncounter);
+  return res.status(200).json({ success: true, message: `Patient state modified to ${statusAction}. Queue recalculated.`, encounter: activeEncounter });
+});
+```
+
+SIDEBAR NAVIGATION CONTROLLER CONFIGURATION (StaffSidebar.jsx Component Layout)
+
+Ensure your presentation mapping layers stack the separated healthcare telemetry panels sequentially as commanded:
+
+```javascript
+function StaffSidebarComponent() {
+  return (
+    <nav className="flex flex-col space-y-2 bg-slate-900 text-white p-4 h-full w-64">
+      <div className="brand-header border-b border-slate-700 pb-3 mb-4 font-bold text-lg">Sapthagiri Clinical Network</div>
+      
+      {/* Primary Infrastructure Links */}
+      <SidebarItem label="Emergency Hub (RED Alerts)" icon="alert-crisis" badgeColor="bg-red-600" />
+      <SidebarItem label="Observation Queue (YELLOW Cases)" icon="eye-monitor" badgeColor="bg-amber-500" />
+      <SidebarItem label="General Monitoring (GREEN Cases)" icon="activity" badgeColor="bg-green-500" />
+      
+      <hr className="border-slate-700 my-4" />
+      
+      {/* Isolated Management Folders */}
+      <SidebarItem label="Patient Registration" icon="user-plus" />
+      <SidebarItem label="Patients Folder Lookup" icon="folder-search" />
+      <SidebarItem label="Staff Information Directory" icon="shield-user" />
+      <SidebarItem label="Settings & Logout" icon="logout" />
+    </nav>
+  );
+}
+```
+
+MANDATORY RECOVERY NOTE DATA NODE SCHEMA (Encounter Model Stacking Layout)
+
+Enforce the continuity logging layout structure within the baseline patient medical timeline component:
+
+```javascript
+const exampleMedicalNoteNode = {
+  noteId: "NOTE-75657",
+  verificationStatus: "Unverified", // Default state before certified validator check
+  doctorName: "Dr. Adarsh",
+  doctorId: "75657",
+  hospitalWorkplace: "Tumakuru Clinic",
+  timestamp: "2 Jun 2026, 5:14 pm",
+  treatmentNotes: "Now he is a bit okay"
+};
+```
+
+EXECUTE THE RESTRUCTURE CAREFULLY. RETAIN CORE FRONTEND STYLES, RETAIN UI COMPONENT THEMES, AND MAINTAIN FULL SYSTEM ALIGNMENT FOR THE INSTITUTIONAL WALKTHROUGH DEMO.

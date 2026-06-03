@@ -61,18 +61,43 @@ router.post("/patient/register", (req, res) => {
 });
 
 // POST /api/auth/patient/login
+// Dual-mode: {phone, password} OR {name, password}
 router.post("/patient/login", (req, res) => {
-  const { phone, password } = req.body || {};
-  if (!phone || !password) {
-    res.status(400).json({ error: "phone and password required" });
+  const { phone, name, password, loginType } = req.body || {};
+  if (!password) {
+    res.status(400).json({ error: "password required" });
     return;
   }
-  const phoneClean = String(phone).replace(/\D/g, "");
-  const patient = [...patientsFolder.values()].find((p) => p.phone === phoneClean);
-  if (!patient) {
-    res.status(401).json({ error: "No patient account found for this phone number. Please register first." });
-    return;
+
+  let patient: PatientUser | undefined;
+
+  if (loginType === "NAME_PASSWORD" || (!phone && name)) {
+    // Name + Password mode
+    if (!name) {
+      res.status(400).json({ error: "name required for name-based login" });
+      return;
+    }
+    patient = [...patientsFolder.values()].find(
+      (p) => p.name.toLowerCase() === String(name).toLowerCase().trim()
+    );
+    if (!patient) {
+      res.status(401).json({ error: "No patient account found with this name. Please check spelling or register first." });
+      return;
+    }
+  } else {
+    // Phone + Password mode (default)
+    if (!phone) {
+      res.status(400).json({ error: "phone or name required" });
+      return;
+    }
+    const phoneClean = String(phone).replace(/\D/g, "");
+    patient = [...patientsFolder.values()].find((p) => p.phone === phoneClean);
+    if (!patient) {
+      res.status(401).json({ error: "No patient account found for this phone number. Please register first." });
+      return;
+    }
   }
+
   if (patient.password !== String(password)) {
     res.status(401).json({ error: "Incorrect password." });
     return;
@@ -125,6 +150,12 @@ router.post("/staff/login", (req, res) => {
   }
   const { password: _, ...safe } = staff;
   res.json({ success: true, user: safe });
+});
+
+// GET /api/auth/staff-directory
+router.get("/staff-directory", (_req, res) => {
+  const all = [...staffUsers.values()].map(({ password: _, ...safe }) => safe);
+  res.json(all);
 });
 
 export default router;

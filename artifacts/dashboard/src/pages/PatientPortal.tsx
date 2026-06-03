@@ -25,9 +25,11 @@ interface PatientUser {
 interface ContinuityEntry {
   id: string;
   doctorName: string;
+  doctorId?: string;
   hospital: string;
   notes: string;
   timestamp: string;
+  verificationStatus?: string;
 }
 
 interface EncounterRecord {
@@ -188,6 +190,183 @@ function ProfileView({ patient }: { patient: PatientUser }) {
   );
 }
 
+interface NoteForm {
+  doctorName: string;
+  doctorId: string;
+  hospital: string;
+  notes: string;
+}
+
+function EncounterCard({ enc }: { enc: EncounterRecord }) {
+  const colors = TRIAGE_COLORS[enc.triageLevel];
+  const [showNoteForm, setShowNoteForm] = useState(false);
+  const [noteForm, setNoteForm] = useState<NoteForm>({ doctorName: "", doctorId: "", hospital: "", notes: "" });
+  const [noteLoading, setNoteLoading] = useState(false);
+  const [noteResult, setNoteResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [localLogs, setLocalLogs] = useState(enc.crossHospitalContinuityLogs);
+
+  const handleNoteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noteForm.doctorName.trim() || !noteForm.notes.trim()) {
+      setNoteResult({ success: false, message: "Doctor name and treatment notes are required." });
+      return;
+    }
+    setNoteLoading(true);
+    try {
+      const res = await fetch(`/api/triage/encounters/${enc.encounterId}/continuity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(noteForm),
+      });
+      const data = await res.json() as { success?: boolean; entry?: ContinuityEntry; error?: string };
+      if (!res.ok || !data.success) {
+        setNoteResult({ success: false, message: data.error ?? "Failed to add note." });
+      } else {
+        if (data.entry) setLocalLogs((prev) => [...prev, data.entry!]);
+        setNoteForm({ doctorName: "", doctorId: "", hospital: "", notes: "" });
+        setShowNoteForm(false);
+        setNoteResult({ success: true, message: "Note added successfully." });
+      }
+    } catch {
+      setNoteResult({ success: false, message: "Network error." });
+    } finally {
+      setNoteLoading(false);
+    }
+  };
+
+  return (
+    <Card className={`border ${
+      enc.triageLevel === "RED" ? "border-red-500/40" : enc.triageLevel === "YELLOW" ? "border-yellow-500/30" : "border-emerald-500/20"
+    }`}>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <span className="font-mono text-xs font-bold text-muted-foreground">{enc.encounterId}</span>
+          <Badge variant="outline" className={`text-xs font-bold ${colors.badge}`}>
+            {enc.triageLevel}
+          </Badge>
+        </div>
+        <p className="text-sm text-foreground mb-2">{enc.symptoms}</p>
+        {enc.visitReason && (
+          <p className="text-xs text-muted-foreground mb-2">Reason: {enc.visitReason}</p>
+        )}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+          <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(enc.timestamp).toLocaleString()}</span>
+          <span className="flex items-center gap-1"><Stethoscope className="w-3 h-3" />{enc.assignedDoctor}</span>
+        </div>
+
+        {/* Doctor Medical Notes / Cross-Hospital Observations Timeline */}
+        <div className="mt-4 pt-3 border-t border-border/30">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Shield className="w-3 h-3" /> Doctor Medical Notes / Cross-Hospital Observations
+            </p>
+            <button
+              onClick={() => { setShowNoteForm((v) => !v); setNoteResult(null); }}
+              className="text-[10px] font-semibold text-primary hover:underline flex items-center gap-1"
+            >
+              {showNoteForm ? "Cancel" : "+ Add Note"}
+            </button>
+          </div>
+
+          {/* Existing notes timeline */}
+          {localLogs.length > 0 ? (
+            <div className="space-y-2 mb-3">
+              {localLogs.map((c) => (
+                <div key={c.id} className="bg-background/40 border border-border/30 rounded-lg p-3 text-xs">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <div>
+                      <span className="font-semibold text-primary">{c.doctorName}</span>
+                      {c.doctorId && <span className="text-muted-foreground font-mono ml-1.5">#{c.doctorId}</span>}
+                      {c.hospital && <span className="text-muted-foreground"> · {c.hospital}</span>}
+                    </div>
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-400 shrink-0">
+                      Unverified
+                    </Badge>
+                  </div>
+                  <p className="text-foreground/80 leading-relaxed">{c.notes}</p>
+                  <p className="text-muted-foreground/50 mt-1.5 text-[10px]">
+                    {new Date(c.timestamp).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            !showNoteForm && (
+              <p className="text-xs text-muted-foreground/50 italic mb-3">No doctor observations recorded yet for this encounter.</p>
+            )
+          )}
+
+          {/* Inline add note form */}
+          {showNoteForm && (
+            <form onSubmit={handleNoteSubmit} className="space-y-3 bg-primary/5 border border-primary/15 rounded-lg p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-2">Add Doctor / Cross-Hospital Observation</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-muted-foreground uppercase">Doctor Name *</label>
+                  <input
+                    type="text"
+                    placeholder="Dr. Full Name"
+                    value={noteForm.doctorName}
+                    onChange={(e) => setNoteForm((p) => ({ ...p, doctorName: e.target.value }))}
+                    className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-muted-foreground uppercase">Doctor ID</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. DOC101"
+                    value={noteForm.doctorId}
+                    onChange={(e) => setNoteForm((p) => ({ ...p, doctorId: e.target.value.toUpperCase() }))}
+                    className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase">Workplace / Hospital</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Sapthagiri NPS Medical Center"
+                  value={noteForm.hospital}
+                  onChange={(e) => setNoteForm((p) => ({ ...p, hospital: e.target.value }))}
+                  className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase">Treatment Notes *</label>
+                <textarea
+                  rows={3}
+                  placeholder="Clinical observations, treatment administered, follow-up instructions..."
+                  value={noteForm.notes}
+                  onChange={(e) => setNoteForm((p) => ({ ...p, notes: e.target.value }))}
+                  className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-primary/40"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-[10px] text-amber-400">
+                  <AlertTriangle className="w-3 h-3" />
+                  <span>Verification Status: <strong>Unverified</strong> (default)</span>
+                </div>
+                <button
+                  type="submit"
+                  disabled={noteLoading}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {noteLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                  {noteLoading ? "Saving…" : "Add to Timeline"}
+                </button>
+              </div>
+              {noteResult && !noteResult.success && (
+                <p className="text-xs text-destructive">{noteResult.message}</p>
+              )}
+            </form>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function HistoryView({ encounters, loading }: { encounters: EncounterRecord[]; loading: boolean }) {
   if (loading) return (
     <div className="flex items-center justify-center py-20 text-muted-foreground">
@@ -207,43 +386,9 @@ function HistoryView({ encounters, loading }: { encounters: EncounterRecord[]; l
         </div>
       ) : (
         <div className="space-y-4">
-          {encounters.map((enc) => {
-            const colors = TRIAGE_COLORS[enc.triageLevel];
-            return (
-              <Card key={enc.encounterId} className={`border ${
-                enc.triageLevel === "RED" ? "border-red-500/40" : enc.triageLevel === "YELLOW" ? "border-yellow-500/30" : "border-emerald-500/20"
-              }`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <span className="font-mono text-xs font-bold text-muted-foreground">{enc.encounterId}</span>
-                    <Badge variant="outline" className={`text-xs font-bold ${colors.badge}`}>
-                      {enc.triageLevel}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-foreground mb-2">{enc.symptoms}</p>
-                  {enc.visitReason && (
-                    <p className="text-xs text-muted-foreground mb-2">Reason: {enc.visitReason}</p>
-                  )}
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(enc.timestamp).toLocaleString()}</span>
-                    <span className="flex items-center gap-1"><Stethoscope className="w-3 h-3" />{enc.assignedDoctor}</span>
-                  </div>
-                  {enc.crossHospitalContinuityLogs.length > 0 && (
-                    <div className="mt-3 pt-2 border-t border-border/30">
-                      <p className="text-xs font-bold text-muted-foreground uppercase mb-1.5">Doctor Notes</p>
-                      {enc.crossHospitalContinuityLogs.map((c) => (
-                        <div key={c.id} className="bg-background/40 rounded p-2 mb-1 text-xs">
-                          <span className="font-semibold text-primary">{c.doctorName}</span>
-                          {c.hospital && <span className="text-muted-foreground"> @ {c.hospital}</span>}
-                          <p className="text-foreground mt-0.5">{c.notes}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+          {encounters.map((enc) => (
+            <EncounterCard key={enc.encounterId} enc={enc} />
+          ))}
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LogIn, ArrowRight, Phone, IdCard, UserPlus, Loader2 } from "lucide-react";
+import { LogIn, ArrowRight, Phone, IdCard, UserPlus, Loader2, User } from "lucide-react";
 import logoUrl from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,13 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
 type PortalTab = "patient" | "staff";
+type PatientLoginMode = "PHONE_OTP" | "NAME_PASSWORD";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const [tab, setTab] = useState<PortalTab>("patient");
+  const [patLoginMode, setPatLoginMode] = useState<PatientLoginMode>("PHONE_OTP");
 
-  // Patient login
-  const [patPhone, setPatPhone] = useState("");
+  // Patient login — shared
+  const [patIdentifier, setPatIdentifier] = useState("");
   const [patPassword, setPatPassword] = useState("");
   const [patError, setPatError] = useState("");
   const [patLoading, setPatLoading] = useState(false);
@@ -28,15 +30,27 @@ export default function LoginPage() {
   const handlePatientLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setPatError("");
-    if (!patPhone || !patPassword) { setPatError("Phone number and password are required."); return; }
+    if (!patIdentifier.trim()) {
+      setPatError(patLoginMode === "PHONE_OTP" ? "Phone number is required." : "Full name is required.");
+      return;
+    }
+    if (!patPassword) { setPatError("Password is required."); return; }
     setPatLoading(true);
     try {
+      const body =
+        patLoginMode === "PHONE_OTP"
+          ? { phone: patIdentifier.trim(), password: patPassword, loginType: "PHONE_OTP" }
+          : { name: patIdentifier.trim(), password: patPassword, loginType: "NAME_PASSWORD" };
+
       const res = await fetch("/api/auth/patient/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: patPhone.trim(), password: patPassword }),
+        body: JSON.stringify(body),
       });
-      const data = await res.json() as { error?: string; user?: { name: string; patientId: string; phone: string; email: string; age: string } };
+      const data = await res.json() as {
+        error?: string;
+        user?: { name: string; patientId: string; phone: string; email: string; age: string };
+      };
       if (!res.ok) {
         setPatError(data.error ?? "Login failed.");
         return;
@@ -49,8 +63,10 @@ export default function LoginPage() {
       try {
         const stored = localStorage.getItem("sapthagiri_user");
         if (stored) {
-          const u = JSON.parse(stored) as { phone?: string; password?: string };
-          if (u.phone?.replace(/\D/g, "") === patPhone.replace(/\D/g, "")) {
+          const u = JSON.parse(stored) as { phone?: string; name?: string };
+          const matchPhone = patLoginMode === "PHONE_OTP" && u.phone?.replace(/\D/g, "") === patIdentifier.replace(/\D/g, "");
+          const matchName  = patLoginMode === "NAME_PASSWORD" && u.name?.toLowerCase() === patIdentifier.toLowerCase().trim();
+          if (matchPhone || matchName) {
             setLocation("/patient");
             return;
           }
@@ -93,6 +109,12 @@ export default function LoginPage() {
     localStorage.setItem("sapthagiri_user", JSON.stringify({ name: "Guest Staff", staffId: "GUEST", role: "staff" }));
     localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
     setLocation("/dashboard");
+  };
+
+  const switchPatLoginMode = (mode: PatientLoginMode) => {
+    setPatLoginMode(mode);
+    setPatIdentifier("");
+    setPatError("");
   };
 
   return (
@@ -141,23 +163,73 @@ export default function LoginPage() {
               <CardDescription>Sign in to view your health records and visit status.</CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Login mode selector */}
+              <div className="flex rounded-lg bg-muted/40 p-0.5 mb-4 border border-border/40">
+                <button
+                  onClick={() => switchPatLoginMode("PHONE_OTP")}
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                    patLoginMode === "PHONE_OTP"
+                      ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Phone className="w-3 h-3" /> Phone Number
+                </button>
+                <button
+                  onClick={() => switchPatLoginMode("NAME_PASSWORD")}
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                    patLoginMode === "NAME_PASSWORD"
+                      ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <User className="w-3 h-3" /> Full Name
+                </button>
+              </div>
+
               <form onSubmit={handlePatientLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="pat-phone" className="flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5 text-blue-400" />
-                    Phone Number <span className="text-blue-400 text-xs font-bold ml-1">PRIMARY ID</span>
-                  </Label>
-                  <Input
-                    id="pat-phone"
-                    type="tel"
-                    placeholder="+91 98765 43210"
-                    value={patPhone}
-                    onChange={(e) => setPatPhone(e.target.value)}
-                    className="bg-background/50 font-mono"
-                    data-testid="input-phone"
-                    autoComplete="tel"
-                  />
-                </div>
+                {patLoginMode === "PHONE_OTP" ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="pat-phone" className="flex items-center gap-2">
+                      <Phone className="w-3.5 h-3.5 text-blue-400" />
+                      Phone Number <span className="text-blue-400 text-xs font-bold ml-1">PRIMARY ID</span>
+                    </Label>
+                    <Input
+                      id="pat-phone"
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                      value={patIdentifier}
+                      onChange={(e) => setPatIdentifier(e.target.value)}
+                      className="bg-background/50 font-mono"
+                      data-testid="input-phone"
+                      autoComplete="tel"
+                    />
+                    <p className="text-[10px] text-muted-foreground/60">
+                      Enter the phone number you registered with.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="pat-name" className="flex items-center gap-2">
+                      <User className="w-3.5 h-3.5 text-blue-400" />
+                      Full Name <span className="text-blue-400 text-xs font-bold ml-1">ALTERNATE ID</span>
+                    </Label>
+                    <Input
+                      id="pat-name"
+                      type="text"
+                      placeholder="e.g. Adarsh Kumar"
+                      value={patIdentifier}
+                      onChange={(e) => setPatIdentifier(e.target.value)}
+                      className="bg-background/50"
+                      data-testid="input-name"
+                      autoComplete="name"
+                    />
+                    <p className="text-[10px] text-muted-foreground/60">
+                      For patients in rural areas without phone access.
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="pat-password">Password</Label>
                   <Input

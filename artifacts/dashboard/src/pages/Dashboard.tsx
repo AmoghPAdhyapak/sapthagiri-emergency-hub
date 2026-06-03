@@ -11,16 +11,15 @@ import {
 import { useLocation } from "wouter";
 import { StatsBar } from "@/components/StatsBar";
 import { PatientList } from "@/components/PatientList";
-import { EmergencySos } from "@/components/EmergencySos";
-import { PatientAnalysisPanel } from "@/components/PatientAnalysisPanel";
 import { PatientsFolderPanel } from "@/components/PatientsFolderPanel";
 import { LiveReportsPanel } from "@/components/LiveReportsPanel";
 import { MedicalTimelinePanel } from "@/components/MedicalTimelinePanel";
+import { ObservationQueuePanel } from "@/components/ObservationQueuePanel";
+import { GeneralMonitoringPanel } from "@/components/GeneralMonitoringPanel";
 import {
   Activity,
   Bot,
   LogOut,
-  LayoutDashboard,
   User,
   Users,
   Settings,
@@ -37,11 +36,16 @@ import {
   ClipboardList,
   CheckCircle2,
   X,
-  AlertOctagon,
   Send,
-  MessageSquare,
   Loader2,
   FileText,
+  Eye,
+  UserPlus,
+  FolderSearch,
+  ShieldAlert,
+  IdCard,
+  AlertOctagon,
+  MessageSquare,
 } from "lucide-react";
 import { AiChatPanel } from "@/components/AiChatPanel";
 import { DoctorVerificationModal } from "@/components/DoctorVerificationModal";
@@ -56,7 +60,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import defaultDoctors from "@/data/doctors.json";
 import logoUrl from "@/assets/logo.png";
 
-type DashView = "dashboard" | "analysis" | "reports" | "folder" | "timeline" | "ai" | "account" | "dean" | "notes";
+type DashView = "dashboard" | "observation" | "general" | "patientreg" | "folder" | "staffdir" | "timeline" | "ai" | "account" | "dean" | "notes";
 
 interface UserData {
   name: string;
@@ -124,15 +128,38 @@ function Sidebar({
   onNavigate: (v: DashView) => void;
   onOpenChat: () => void;
 }) {
-  const navItems: { view: DashView; icon: React.ReactNode; label: string }[] = [
-    { view: "dashboard", icon: <LayoutDashboard className="w-4 h-4" />, label: "Emergency Hub" },
-    { view: "reports",   icon: <AlertTriangle className="w-4 h-4" />,   label: "Live Reports" },
-    { view: "folder",    icon: <Users className="w-4 h-4" />,           label: "Patients Folder" },
-    { view: "analysis",  icon: <Stethoscope className="w-4 h-4" />,     label: "AI Triage" },
-    { view: "timeline",  icon: <Activity className="w-4 h-4" />,        label: "Medical Timeline" },
-    { view: "notes",     icon: <FileText className="w-4 h-4" />,        label: "Medical Notes" },
-    { view: "account",   icon: <User className="w-4 h-4" />,            label: "Settings" },
-    { view: "dean",      icon: <Settings className="w-4 h-4" />,        label: "Dean Access" },
+  const queueItems: { view: DashView; icon: React.ReactNode; label: string; activeColor: string; dotColor: string }[] = [
+    {
+      view: "dashboard",
+      icon: <ShieldAlert className="w-4 h-4" />,
+      label: "Emergency Hub",
+      activeColor: "bg-red-500/15 text-red-300 border border-red-500/30",
+      dotColor: "bg-red-500",
+    },
+    {
+      view: "observation",
+      icon: <Eye className="w-4 h-4" />,
+      label: "Observation Queue",
+      activeColor: "bg-yellow-500/15 text-yellow-300 border border-yellow-500/30",
+      dotColor: "bg-yellow-500",
+    },
+    {
+      view: "general",
+      icon: <Activity className="w-4 h-4" />,
+      label: "General Monitoring",
+      activeColor: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30",
+      dotColor: "bg-emerald-500",
+    },
+  ];
+
+  const mgmtItems: { view: DashView; icon: React.ReactNode; label: string }[] = [
+    { view: "patientreg", icon: <UserPlus className="w-4 h-4" />,    label: "Patient Registration" },
+    { view: "folder",     icon: <FolderSearch className="w-4 h-4" />, label: "Patients Folder" },
+    { view: "staffdir",   icon: <IdCard className="w-4 h-4" />,      label: "Staff Directory" },
+    { view: "timeline",   icon: <ClipboardList className="w-4 h-4" />,label: "Medical Timeline" },
+    { view: "notes",      icon: <FileText className="w-4 h-4" />,     label: "Medical Notes" },
+    { view: "account",    icon: <User className="w-4 h-4" />,         label: "Settings" },
+    { view: "dean",       icon: <Settings className="w-4 h-4" />,     label: "Dean Access" },
   ];
 
   return (
@@ -142,14 +169,43 @@ function Sidebar({
         <img src={logoUrl} alt="Sapthagiri NPS" className="h-9 w-9 object-contain shrink-0" />
         <div className="min-w-0">
           <p className="text-xs font-black text-foreground leading-tight truncate">Sapthagiri NPS</p>
-          <p className="text-[9px] text-muted-foreground uppercase tracking-widest truncate">Medical Portal</p>
+          <p className="text-[9px] text-muted-foreground uppercase tracking-widest truncate">Clinical Network</p>
         </div>
       </div>
-      <div className="px-4 mb-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Navigation</p>
+
+      {/* Queue Sections */}
+      <div className="px-4 mb-2">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Live Queues</p>
+      </div>
+      <nav className="flex flex-col gap-1 px-2">
+        {queueItems.map(({ view, icon, label, activeColor, dotColor }) => (
+          <button
+            key={view}
+            onClick={() => onNavigate(view)}
+            data-testid={`nav-${view}`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left ${
+              activeView === view
+                ? activeColor
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            }`}
+          >
+            {icon}
+            <span className="flex-1 text-left">{label}</span>
+            {activeView !== view && (
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
+            )}
+          </button>
+        ))}
+      </nav>
+
+      <div className="mx-4 my-3 border-t border-border" />
+
+      {/* Management */}
+      <div className="px-4 mb-2">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Management</p>
       </div>
       <nav className="flex flex-col gap-1 px-2 flex-1">
-        {navItems.map(({ view, icon, label }) => (
+        {mgmtItems.map(({ view, icon, label }) => (
           <button
             key={view}
             onClick={() => onNavigate(view)}
@@ -165,7 +221,7 @@ function Sidebar({
           </button>
         ))}
 
-        {/* AI Assistant — full-page Gemini chat */}
+        {/* AI Assistant */}
         <button
           onClick={() => onNavigate("ai")}
           data-testid="nav-ai-assistant"
@@ -180,6 +236,7 @@ function Sidebar({
           <span className="ml-auto flex h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
         </button>
       </nav>
+
       <div className="px-4 mt-4 pt-4 border-t border-border">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -689,6 +746,184 @@ function DeanPanel() {
   );
 }
 
+// ── Patient Registration Panel ────────────────────────────────────────────────
+function PatientRegistrationPanel() {
+  const [form, setForm] = useState({ name: "", phone: "", age: "", email: "", password: "" });
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ success: boolean; patientId?: string; name?: string; error?: string } | null>(null);
+
+  const handleChange = (field: string, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setResult(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.phone.trim() || !form.password) {
+      setResult({ success: false, error: "Full name, phone number, and password are required." });
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/patient/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json() as { success?: boolean; patientId?: string; name?: string; error?: string };
+      if (!res.ok || !data.success) {
+        setResult({ success: false, error: data.error ?? "Registration failed." });
+      } else {
+        setResult({ success: true, patientId: data.patientId, name: data.name });
+        setForm({ name: "", phone: "", age: "", email: "", password: "" });
+      }
+    } catch {
+      setResult({ success: false, error: "Network error. Please try again." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <UserPlus className="w-5 h-5 text-primary" /> Patient Registration
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Register a new patient directly from the staff dashboard. Patient credentials are created server-side.
+        </p>
+      </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="reg-name">Full Name <span className="text-destructive">*</span></Label>
+              <Input id="reg-name" placeholder="e.g. Adarsh Kumar" value={form.name}
+                onChange={(e) => handleChange("name", e.target.value)} className="bg-background/50" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reg-phone">Phone Number <span className="text-destructive">*</span></Label>
+              <Input id="reg-phone" type="tel" placeholder="+91 98765 43210" value={form.phone}
+                onChange={(e) => handleChange("phone", e.target.value)} className="bg-background/50 font-mono" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="reg-age">Age</Label>
+                <Input id="reg-age" type="number" placeholder="e.g. 34" value={form.age}
+                  onChange={(e) => handleChange("age", e.target.value)} className="bg-background/50" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reg-email">Email <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input id="reg-email" type="email" placeholder="patient@email.com" value={form.email}
+                  onChange={(e) => handleChange("email", e.target.value)} className="bg-background/50" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reg-password">Password <span className="text-destructive">*</span></Label>
+              <Input id="reg-password" type="password" placeholder="Set a login password for the patient" value={form.password}
+                onChange={(e) => handleChange("password", e.target.value)} className="bg-background/50" />
+              <p className="text-[10px] text-muted-foreground/60">Patient uses this password to log into the Patient Portal.</p>
+            </div>
+
+            {result && (
+              result.success ? (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-md">
+                  <div className="flex items-center gap-2 text-emerald-300 font-semibold text-sm mb-1">
+                    <CheckCircle2 className="w-4 h-4" /> Patient registered successfully!
+                  </div>
+                  <p className="text-xs text-muted-foreground">Patient ID: <span className="font-mono font-bold text-emerald-300">{result.patientId}</span></p>
+                  <p className="text-xs text-muted-foreground">Name: <span className="font-semibold text-foreground">{result.name}</span></p>
+                </div>
+              ) : (
+                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
+                  {result.error}
+                </div>
+              )
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Registering…</> : <><UserPlus className="w-4 h-4 mr-2" /> Register Patient</>}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── Staff Directory Panel ─────────────────────────────────────────────────────
+function StaffDirectoryPanel() {
+  const [staffList, setStaffList] = useState<{ userId: string; staffId: string; name: string; role: string; createdAt: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/auth/staff-directory")
+      .then((r) => r.json())
+      .then((data: { userId: string; staffId: string; name: string; role: string; createdAt: string }[]) => {
+        setStaffList(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="p-6 max-w-2xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <IdCard className="w-5 h-5 text-primary" /> Staff Information Directory
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Registered medical staff and their identity records. Credentials are never displayed.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin mr-3" /> Loading directory...
+        </div>
+      ) : staffList.length === 0 ? (
+        <div className="text-center py-16">
+          <IdCard className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-muted-foreground font-medium">No staff registered yet.</p>
+          <p className="text-sm text-muted-foreground/60 mt-1">Staff members who register via the Staff Portal appear here.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {staffList.map((staff) => (
+            <Card key={staff.staffId} className="border-border/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground text-sm">{staff.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Joined {new Date(staff.createdAt).toLocaleDateString("en-US", { dateStyle: "medium" })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="outline" className="font-mono text-xs text-primary border-primary/30">
+                      {staff.staffId}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                      {staff.role}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Dashboard Main View ───────────────────────────────────────────────────────
 function PatientDashboardView() {
   return (
@@ -1034,20 +1269,21 @@ export default function Dashboard() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar activeView={activeView} onNavigate={setActiveView} onOpenChat={() => setIsChatOpen(true)} />
         <main className="flex-1 overflow-auto">
-          {activeView === "dashboard" && <PatientDashboardView />}
-          {activeView === "analysis"  && <PatientAnalysisPanel />}
-          {activeView === "reports"   && <LiveReportsPanel />}
-          {activeView === "folder"    && <PatientsFolderPanel />}
-          {activeView === "timeline"  && <MedicalTimelinePanel />}
-          {activeView === "notes"     && <MedicalNotesPanel />}
-          {activeView === "ai"        && <AiFullPage />}
-          {activeView === "account"   && <AccountPanel user={user} />}
-          {activeView === "dean"      && <DeanPanel />}
+          {activeView === "dashboard"   && <LiveReportsPanel />}
+          {activeView === "observation" && <ObservationQueuePanel />}
+          {activeView === "general"     && <GeneralMonitoringPanel />}
+          {activeView === "patientreg"  && <PatientRegistrationPanel />}
+          {activeView === "folder"      && <PatientsFolderPanel />}
+          {activeView === "staffdir"    && <StaffDirectoryPanel />}
+          {activeView === "timeline"    && <MedicalTimelinePanel />}
+          {activeView === "notes"       && <MedicalNotesPanel />}
+          {activeView === "ai"          && <AiFullPage />}
+          {activeView === "account"     && <AccountPanel user={user} />}
+          {activeView === "dean"        && <DeanPanel />}
         </main>
       </div>
 
       <AiChatPanel isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
-      <EmergencySos />
     </div>
   );
 }
