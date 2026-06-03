@@ -1,0 +1,148 @@
+IMPORTANT — TRIAGE ZONE WORKFLOW EXPANSION
+
+Do NOT redesign the dashboard.
+Do NOT modify authentication systems.
+Do NOT break existing Emergency Hub, Patient Folder, or Medical Timeline structures.
+
+Only extend the existing patient triage workflow carefully.
+
+---
+
+## YELLOW & GREEN TRIAGE ZONE EXPANSION
+
+Currently:
+
+* RED patients are handled inside Emergency Hub.
+
+Now implement:
+2 additional triage workflow folders below Emergency Hub in the navigation sidebar:
+
+1. Observation Queue → for YELLOW patients
+2. General Monitoring → for GREEN patients
+
+IMPORTANT:
+These queues must behave similarly to Emergency Hub.
+
+Meaning:
+
+* connected to Medical Timeline
+* connected to patient workflow
+* connected to patient history
+* connected to live patient monitoring
+
+---
+
+## PATIENT STATUS ACTION CONTROLS
+
+Inside:
+
+* RED Zone
+* YELLOW Zone
+* GREEN Zone
+
+add 3 doctor-controlled workflow actions.
+
+These actions MUST only be usable by:
+
+# registered staff / verified doctor accounts
+
+---
+
+## REQUIRED ACTION BUTTONS
+
+1. COMPLETED
+   Meaning:
+
+* patient treatment finished
+* removed from active queue
+* automatically saved into Patient History
+
+Inside Patient History save:
+
+* patient triage color
+* timestamps
+* treatment lifecycle
+* doctor ID
+* completion status
+
+---
+
+2. UPGRADE / ESCALATE
+   Meaning:
+   patient condition worsened.
+
+Workflow:
+
+* GREEN → YELLOW
+* YELLOW → RED
+
+This action:
+
+* automatically moves patient into higher critical queue
+* updates Medical Timeline
+* logs doctor ID
+* stores escalation event inside Patient History
+
+---
+
+3. UNDER OBSERVATION
+   Meaning:
+   patient still requires monitoring.
+
+This status:
+
+* keeps patient inside current queue
+* marks treatment as ongoing
+* displays:
+  "Ongoing Treatment"
+
+inside Patient History.
+
+---
+
+## MEDICAL HISTORY REQUIREMENTS
+
+Inside Patient History,
+store ALL survival/treatment transitions chronologically.
+
+Examples:
+
+* GREEN → UNDER OBSERVATION
+* YELLOW → COMPLETED
+* GREEN → YELLOW escalation
+* YELLOW → RED escalation
+* RED → COMPLETED
+
+History must remain:
+
+* append-only
+* chronological
+* permanently visible
+
+DO NOT overwrite previous treatment states.
+
+---
+
+## MOST IMPORTANT RULES
+
+DO NOT:
+
+* redesign UI heavily
+* change AI assistant
+* modify authentication routing
+* destroy Emergency Hub logic
+* create fake placeholder queues
+
+ONLY:
+
+* extend existing triage workflow
+* add Yellow & Green queue systems
+* add doctor-controlled patient state actions
+* connect everything into Patient History + Medical Timeline
+
+Keep the implementation:
+
+* lightweight
+* realistic
+* presentation-safe
+* visually integrated with current dashboard.

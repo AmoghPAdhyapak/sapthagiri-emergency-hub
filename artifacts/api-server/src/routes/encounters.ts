@@ -13,6 +13,15 @@ export interface ContinuityEntry {
   verificationStatus: string;
 }
 
+export interface StatusHistoryEntry {
+  eventId: string;
+  action: string;
+  previousLevel: string;
+  newLevel: string;
+  doctorId: string;
+  timestamp: string;
+}
+
 export interface EncounterRecord {
   encounterId: string;
   patientId: string;
@@ -24,6 +33,8 @@ export interface EncounterRecord {
   doctorId: string;
   timestamp: string;
   crossHospitalContinuityLogs: ContinuityEntry[];
+  statusHistory: StatusHistoryEntry[];
+  completionStatus?: string;
   isArchived?: boolean;
   terminationTimestamp?: string;
 }
@@ -76,6 +87,16 @@ router.post("/process", (req, res) => {
     doctorId: String(doctorId || ""),
     timestamp: new Date().toISOString(),
     crossHospitalContinuityLogs: [],
+    statusHistory: [
+      {
+        eventId: `EVT-${Date.now()}`,
+        action: "TRIAGE_CREATED",
+        previousLevel: "",
+        newLevel: finalTriageLevel,
+        doctorId: String(doctorId || "AUTO"),
+        timestamp: new Date().toISOString(),
+      },
+    ],
     isArchived: false,
   };
 
@@ -167,6 +188,77 @@ router.patch("/emergency-hub/action", (req, res) => {
     message: `Patient state modified to ${statusAction}. Queue recalculated.`,
     encounter: activeEncounter,
   });
+});
+
+// PATCH /api/triage/queue/action — universal action endpoint for all triage zones
+router.patch("/queue/action", (req, res) => {
+  const { encounterId, doctorId, action } = req.body || {};
+
+  if (!doctorId) {
+    res.status(403).json({ success: false, error: "Doctor ID required to authorize this action." });
+    return;
+  }
+  if (!encounterId || !action) {
+    res.status(400).json({ success: false, error: "encounterId and action are required." });
+    return;
+  }
+
+  const enc = encounters.get(String(encounterId));
+  if (!enc) {
+    res.status(404).json({ success: false, error: "Encounter not found." });
+    return;
+  }
+
+  const previousLevel = enc.triageLevel;
+  const ts = new Date().toISOString();
+
+  if (!enc.statusHistory) enc.statusHistory = [];
+
+  if (action === "COMPLETED") {
+    enc.isArchived = true;
+    enc.completionStatus = "COMPLETED";
+    enc.terminationTimestamp = ts;
+    enc.statusHistory.push({
+      eventId: `EVT-${Date.now()}`,
+      action: "COMPLETED",
+      previousLevel,
+      newLevel: previousLevel,
+      doctorId: String(doctorId),
+      timestamp: ts,
+    });
+  } else if (action === "ESCALATE") {
+    const nextLevel = previousLevel === "GREEN" ? "YELLOW" : previousLevel === "YELLOW" ? "RED" : null;
+    if (!nextLevel) {
+      res.status(400).json({ success: false, error: "Cannot escalate a RED patient further." });
+      return;
+    }
+    enc.triageLevel = nextLevel as "RED" | "YELLOW" | "GREEN";
+    enc.statusHistory.push({
+      eventId: `EVT-${Date.now()}`,
+      action: `ESCALATE_${previousLevel}_TO_${nextLevel}`,
+      previousLevel,
+      newLevel: nextLevel,
+      doctorId: String(doctorId),
+      timestamp: ts,
+    });
+  } else if (action === "UNDER_OBSERVATION") {
+    enc.completionStatus = "ONGOING";
+    enc.statusHistory.push({
+      eventId: `EVT-${Date.now()}`,
+      action: "UNDER_OBSERVATION",
+      previousLevel,
+      newLevel: previousLevel,
+      doctorId: String(doctorId),
+      timestamp: ts,
+    });
+  } else {
+    res.status(400).json({ success: false, error: "Invalid action. Must be COMPLETED, ESCALATE, or UNDER_OBSERVATION." });
+    return;
+  }
+
+  encounters.set(encounterId, enc);
+  req.log.info(`[QUEUE-ACTION] ${encounterId} → ${action} by Doctor ${doctorId}`);
+  res.status(200).json({ success: true, encounter: enc });
 });
 
 // GET /api/triage/patient/:patientId
