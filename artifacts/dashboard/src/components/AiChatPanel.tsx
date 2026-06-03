@@ -8,16 +8,22 @@ import {
   getListGeminiConversationsQueryKey,
   getGetGeminiConversationQueryKey
 } from "@workspace/api-client-react";
-import { MessageSquare, X, Plus, Send, Loader2, Bot, User, Trash2 } from "lucide-react";
+import { MessageSquare, X, Plus, Send, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface AiChatPanelProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const SUGGESTION_PILLS = [
+  { emoji: "✨", label: "Scan Emergency Queue", text: "Scan the current emergency queue and summarize all active RED alert patients." },
+  { emoji: "🔍", label: "Search Patient", text: "Help me search for a patient by name or ID in the system." },
+  { emoji: "📝", label: "Summarize Notes", text: "Summarize the latest medical notes and doctor observations." },
+  { emoji: "💼", label: "Help Staff", text: "What can you help hospital staff with in this system?" },
+];
 
 export function AiChatPanel({ isOpen, onClose }: AiChatPanelProps) {
   const queryClient = useQueryClient();
@@ -62,17 +68,15 @@ export function AiChatPanel({ isOpen, onClose }: AiChatPanelProps) {
     deleteConversation.mutate({ id }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListGeminiConversationsQueryKey() });
-        if (activeConversationId === id) {
-          handleNewChat();
-        }
+        if (activeConversationId === id) handleNewChat();
       }
     });
   };
 
-  const handleSend = async () => {
-    if (!inputValue.trim() || isStreaming) return;
+  const handleSend = async (text?: string) => {
+    const messageToSend = text ?? inputValue;
+    if (!messageToSend.trim() || isStreaming) return;
 
-    const messageToSend = inputValue;
     setInputValue("");
     setLocalMessages(prev => [...prev, { role: "user", content: messageToSend }]);
     setIsStreaming(true);
@@ -87,7 +91,7 @@ export function AiChatPanel({ isOpen, onClose }: AiChatPanelProps) {
         currentConversationId = newConv.id;
         setActiveConversationId(newConv.id);
         queryClient.invalidateQueries({ queryKey: getListGeminiConversationsQueryKey() });
-      } catch (err) {
+      } catch {
         setIsStreaming(false);
         return;
       }
@@ -100,14 +104,12 @@ export function AiChatPanel({ isOpen, onClose }: AiChatPanelProps) {
         body: JSON.stringify({ content: messageToSend }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to send message");
-      }
+      if (!response.ok) throw new Error("Failed to send message");
 
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -121,14 +123,11 @@ export function AiChatPanel({ isOpen, onClose }: AiChatPanelProps) {
             if (json.done) {
               queryClient.invalidateQueries({ queryKey: getGetGeminiConversationQueryKey(currentConversationId as number) });
             }
-            if (json.error) {
-              console.error("Stream error:", json.error);
-            }
           }
         }
       }
-    } catch (error) {
-      console.error(error);
+    } catch {
+      // silent
     } finally {
       setIsStreaming(false);
     }
@@ -136,161 +135,198 @@ export function AiChatPanel({ isOpen, onClose }: AiChatPanelProps) {
 
   if (!isOpen) return null;
 
+  const inChat = activeConversationId !== null || localMessages.length > 0;
+
   return (
-    <div 
-      className="fixed inset-y-0 right-0 w-[380px] bg-[#0f1219] border-l border-border shadow-2xl flex flex-col z-50 transform transition-transform duration-300 ease-in-out"
+    <div
+      className="fixed inset-y-0 right-0 w-[380px] flex flex-col z-50 shadow-2xl"
+      style={{ background: "#0d1117", borderLeft: "1px solid #21262d" }}
       data-testid="ai-chat-panel"
     >
-      {/* Header */}
-      <div className="p-4 border-b border-border/50 bg-[#161b22] flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="bg-primary/20 p-1.5 rounded-md">
-            <Bot className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-bold text-sm uppercase tracking-wider text-primary">AI Health Assistant</h3>
-            <div className="flex items-center gap-1.5">
-              <span className={cn("w-1.5 h-1.5 rounded-full", isStreaming ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground")} />
-              <span className="text-[10px] uppercase font-mono text-muted-foreground">
-                {isStreaming ? "Live Output" : "Standby"}
-              </span>
-            </div>
-          </div>
+      {/* ── Header ── */}
+      <div className="shrink-0 px-4 py-3.5 flex items-center justify-between" style={{ background: "#161b22", borderBottom: "1px solid #21262d" }}>
+        <div>
+          <h2 className="text-sm font-semibold text-slate-100 flex items-center gap-2 tracking-wide">
+            AI Clinical Assistant
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+          </h2>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            {isStreaming ? "Generating response…" : "Connected to Hospital Queue"}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={handleNewChat} data-testid="button-new-chat">
-            <Plus className="h-4 w-4" />
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-slate-500 hover:text-slate-200 hover:bg-slate-800"
+            onClick={handleNewChat}
+            data-testid="button-new-chat"
+            title="New conversation"
+          >
+            <Plus className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={onClose} data-testid="button-close-chat">
-            <X className="h-4 w-4" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-slate-500 hover:text-slate-200 hover:bg-slate-800"
+            onClick={onClose}
+            data-testid="button-close-chat"
+          >
+            <X className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar - Conversation List */}
-        {!activeConversationId && !localMessages.length && (
-          <div className="w-full h-full flex flex-col bg-background/50">
-            <div className="p-3 border-b border-border/50">
-              <span className="text-xs font-mono text-muted-foreground uppercase">Recent Consults</span>
+      {/* ── Body ── */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+
+        {/* Conversation list (home screen) */}
+        {!inChat && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Welcome block */}
+            <div className="px-5 py-6">
+              <div className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mb-3">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-400">
+                  <path d="M12 2a8 8 0 0 1 8 8c0 5-8 13-8 13S4 15 4 10a8 8 0 0 1 8-8z" /><circle cx="12" cy="10" r="3" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-slate-100">How can I help you today?</p>
+              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">Ask about patients, triage queues, medical notes, or clinical decisions.</p>
             </div>
-            <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1">
-                {isLoadingConversations ? (
-                  <div className="p-4 text-center text-muted-foreground text-sm flex justify-center"><Loader2 className="w-4 h-4 animate-spin" /></div>
-                ) : conversations?.length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground text-xs font-mono">No recent consults</div>
-                ) : (
-                  conversations?.map((conv) => (
-                    <div 
-                      key={conv.id} 
-                      className="group flex items-center justify-between p-3 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+
+            {/* Recent chats */}
+            <div className="px-4 pb-2">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-2">Recent Consults</p>
+            </div>
+            <ScrollArea className="flex-1 px-2">
+              {isLoadingConversations ? (
+                <div className="flex justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-slate-600" /></div>
+              ) : conversations?.length === 0 ? (
+                <p className="text-[11px] text-slate-600 text-center py-6">No recent consults</p>
+              ) : (
+                <div className="space-y-0.5 pb-4">
+                  {conversations?.map((conv) => (
+                    <div
+                      key={conv.id}
+                      className="group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors hover:bg-slate-800/60"
                       onClick={() => setActiveConversationId(conv.id)}
                       data-testid={`item-conversation-${conv.id}`}
                     >
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm truncate text-foreground/90">{conv.title}</span>
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <MessageSquare className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                        <span className="text-xs text-slate-300 truncate">{conv.title}</span>
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-opacity shrink-0"
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 hover:bg-transparent transition-opacity shrink-0"
                         onClick={(e) => handleDelete(conv.id, e)}
                         data-testid={`button-delete-conversation-${conv.id}`}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </ScrollArea>
           </div>
         )}
 
-        {/* Chat Area */}
-        {(activeConversationId || localMessages.length > 0) && (
-          <div className="w-full flex flex-col h-full bg-[#0a0c10]">
-            <div 
-              ref={scrollRef}
-              className="flex-1 overflow-y-auto p-4 space-y-4"
-            >
-              {isLoadingMessages && activeConversationId && !localMessages.length ? (
-                <div className="h-full flex items-center justify-center">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <>
-                  <div className="text-center pb-4">
-                    <span className="text-[10px] uppercase font-mono text-muted-foreground border border-border/50 rounded px-2 py-1 bg-muted/20">
-                      End-to-end Encrypted Session
-                    </span>
-                  </div>
-                  {localMessages.map((msg, i) => (
-                    <div key={i} className={cn("flex flex-col max-w-[85%]", msg.role === "user" ? "ml-auto" : "mr-auto")}>
-                      <div className={cn(
-                        "p-3 rounded-lg text-sm",
-                        msg.role === "user" 
-                          ? "bg-slate-800 text-slate-100 rounded-tr-sm" 
-                          : "bg-primary/20 text-primary-foreground border border-primary/20 rounded-tl-sm"
-                      )}>
-                        {msg.content}
-                      </div>
-                      <span className={cn("text-[10px] text-muted-foreground font-mono mt-1", msg.role === "user" ? "text-right" : "text-left")}>
-                        {msg.role === "user" ? "Staff" : "System AI"}
-                      </span>
-                    </div>
-                  ))}
-                  {isStreaming && (
-                    <div className="flex flex-col max-w-[85%] mr-auto">
-                      <div className="p-3 rounded-lg text-sm bg-primary/20 text-primary-foreground border border-primary/20 rounded-tl-sm">
-                        {streamingContent}
-                        <span className="inline-block w-1.5 h-3 ml-1 bg-primary animate-pulse align-middle" />
-                      </div>
-                      <span className="text-[10px] text-muted-foreground font-mono mt-1 text-left">
-                        System AI
-                      </span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Input Area */}
-            <div className="p-4 bg-[#161b22] border-t border-border/50 shrink-0">
-              <form 
-                onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-                className="flex items-end gap-2"
-              >
-                <div className="relative flex-1">
-                  <Input 
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="Query triage protocols or symptoms..."
-                    className="pr-10 bg-[#0a0c10] border-border text-sm focus-visible:ring-primary/50"
-                    disabled={isStreaming}
-                    data-testid="input-chat-message"
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  size="icon" 
-                  disabled={!inputValue.trim() || isStreaming}
-                  className="shrink-0 h-10 w-10 bg-primary hover:bg-primary/90 text-primary-foreground"
-                  data-testid="button-send-message"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </form>
-              <div className="mt-2 text-center">
-                <span className="text-[10px] uppercase font-mono text-muted-foreground/60">
-                  Not a medical diagnosis tool
-                </span>
+        {/* Active chat messages */}
+        {inChat && (
+          <div
+            ref={scrollRef}
+            className="flex-1 overflow-y-auto px-4 py-5 space-y-4 text-xs leading-relaxed"
+          >
+            {isLoadingMessages && activeConversationId && !localMessages.length ? (
+              <div className="h-full flex items-center justify-center">
+                <Loader2 className="w-5 h-5 animate-spin text-slate-600" />
               </div>
-            </div>
+            ) : (
+              <>
+                {localMessages.map((msg, i) => (
+                  <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                    <div className={cn(
+                      "max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed",
+                      msg.role === "user"
+                        ? "bg-slate-800 text-slate-100 rounded-br-sm border border-slate-700/50"
+                        : "bg-slate-950/60 text-slate-200 rounded-bl-sm border border-slate-800"
+                    )}>
+                      {msg.role === "model" && (
+                        <span className="text-[10px] text-teal-400 font-semibold block mb-1.5 tracking-wider uppercase">Gemini Clinical Sync</span>
+                      )}
+                      <p className="text-slate-300 font-normal whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                  </div>
+                ))}
+
+                {isStreaming && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] px-3.5 py-2.5 rounded-2xl rounded-bl-sm bg-slate-950/60 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                      <span className="text-[10px] text-teal-400 font-semibold block mb-1.5 tracking-wider uppercase">Gemini Clinical Sync</span>
+                      {streamingContent || (
+                        <span className="text-slate-600">Thinking<span className="animate-pulse">…</span></span>
+                      )}
+                      {streamingContent && (
+                        <span className="inline-block w-1 h-3 ml-0.5 bg-teal-400 animate-pulse align-middle rounded-sm" />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
+      </div>
+
+      {/* ── Suggestion Pills ── */}
+      <div
+        className="shrink-0 px-4 pt-2 pb-1 flex gap-1.5 overflow-x-auto scrollbar-none"
+        style={{ borderTop: inChat ? "1px solid #21262d" : "none" }}
+      >
+        {SUGGESTION_PILLS.map((pill) => (
+          <button
+            key={pill.label}
+            onClick={() => handleSend(pill.text)}
+            disabled={isStreaming}
+            className="whitespace-nowrap px-2.5 py-1 text-[10px] text-slate-400 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {pill.emoji} {pill.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Input Tray ── */}
+      <div className="shrink-0 px-4 pt-2 pb-4">
+        <form
+          onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+          className="relative flex items-center rounded-xl border border-slate-800 focus-within:border-teal-500/50 transition-colors pl-3.5 pr-2 py-1.5"
+          style={{ background: "#0a0d12" }}
+        >
+          <input
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Ask about patients, queue, triage, or medical notes..."
+            className="flex-1 bg-transparent text-xs text-slate-200 placeholder-slate-600 focus:outline-none py-1"
+            disabled={isStreaming}
+            data-testid="input-chat-message"
+          />
+          <button
+            type="submit"
+            disabled={!inputValue.trim() || isStreaming}
+            className="ml-2 p-1.5 rounded-lg text-teal-400 hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            data-testid="button-send-message"
+          >
+            {isStreaming
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Send className="w-3.5 h-3.5" />}
+          </button>
+        </form>
+        <p className="text-[9px] text-slate-700 text-center mt-1.5 tracking-wide uppercase">Not a medical diagnosis tool</p>
       </div>
     </div>
   );
