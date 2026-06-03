@@ -1,0 +1,115 @@
+IMPORTANT — CROSS-HOSPITAL CONTINUITY WORKFLOW CORRECTION
+
+Do NOT redesign the dashboard.
+Do NOT modify the existing Patient Folder structure.
+Do NOT break current Medical Timeline or Staff Portal logic.
+
+Only correct the workflow location of:
+
+# Cross-Hospital Continuity Notes
+
+---
+
+## CURRENT PROBLEM
+
+Currently:
+the "Cross-Hospital Continuity Note" filling form exists inside:
+
+Staff Portal → Patient Folder → Particular Patient File
+
+This workflow is incorrect.
+
+---
+
+## REQUIRED WORKFLOW CORRECTION
+
+The form/input section for:
+
+# Cross-Hospital Continuity Notes
+
+should ONLY exist inside:
+
+# Patient Webpage / Patient Portal
+
+NOT inside Staff Portal.
+
+Reason:
+The patient is the one visiting another hospital/doctor externally.
+
+So the patient should:
+
+* upload/fill external treatment information
+* submit outside doctor details
+* attach continuity information
+
+through:
+
+# their own patient account.
+
+---
+
+## PATIENT PORTAL REQUIREMENTS
+
+Inside Patient Portal,
+add:
+
+# Cross-Hospital Continuity Note Form
+
+Required fields:
+
+* Doctor Name
+* Doctor ID
+* Hospital / Workplace
+* Legal Verification / Medical Registration ID
+* Phone Number
+* Treatment Notes / Observation
+* Timestamp
+
+When patient submits this form:
+
+the data must automatically:
+
+* append into Patient History
+* append into Medical Timeline
+* become visible inside Staff Portal
+
+---
+
+## STAFF PORTAL BEHAVIOR
+
+Inside:
+Staff Portal → Patient Folder → Particular Patient File
+
+staff should ONLY:
+
+* VIEW continuity notes
+* monitor history
+* verify records if needed
+
+Staff should NOT manually create these continuity notes from their side anymore.
+
+---
+
+## IMPORTANT IMPLEMENTATION RULE
+
+Do NOT:
+
+* break existing patient records
+* redesign UI heavily
+* remove Medical Timeline
+* modify Emergency Hub logic
+* remove current append-only history system
+
+ONLY:
+
+* move continuity form input to Patient Portal
+* sync submitted data automatically to Staff Portal visibility
+* preserve chronological patient history workflow
+
+This correction is required for:
+
+# healthcare workflow realism
+
+# continuity-of-care accuracy
+
+# patient-driven external treatment tracking.

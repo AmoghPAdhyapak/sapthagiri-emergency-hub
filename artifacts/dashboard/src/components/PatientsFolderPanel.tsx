@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import {
   Users, Search, X, ChevronRight, User, Phone, Mail, Calendar,
-  Stethoscope, AlertTriangle, Plus, ClipboardList, Clock, FileText,
-  Loader2, Activity, Send,
+  Stethoscope, ClipboardList, Clock, FileText,
+  Loader2, Activity, Link2, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,16 +71,6 @@ export function PatientsFolderPanel() {
   const [triageLoading, setTriageLoading] = useState(false);
   const [triageMsg, setTriageMsg] = useState("");
 
-  // Continuity form state
-  const [contEncounterId, setContEncounterId] = useState("");
-  const [contDoctor, setContDoctor] = useState("");
-  const [contHospital, setContHospital] = useState("");
-  const [contMedRegId, setContMedRegId] = useState("");
-  const [contPhone, setContPhone] = useState("");
-  const [contNotes, setContNotes] = useState("");
-  const [contLoading, setContLoading] = useState(false);
-  const [contMsg, setContMsg] = useState("");
-
   useEffect(() => {
     fetch("/api/patients-folder")
       .then((r) => r.json())
@@ -101,7 +91,6 @@ export function PatientsFolderPanel() {
   const openPatient = async (patientId: string) => {
     setLoadingDetail(true);
     setTriageMsg("");
-    setContMsg("");
     try {
       const r = await fetch(`/api/patients-folder/${patientId}`);
       const data = await r.json() as PatientDetail;
@@ -137,39 +126,6 @@ export function PatientsFolderPanel() {
       setTriageMsg("Failed to submit triage.");
     } finally {
       setTriageLoading(false);
-    }
-  };
-
-  const handleContinuity = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contEncounterId || !contDoctor || !contNotes) return;
-    setContLoading(true);
-    setContMsg("");
-    try {
-      const r = await fetch(`/api/triage/encounters/${contEncounterId}/continuity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          doctorName: contDoctor,
-          doctorId: contDoctor,
-          hospital: contHospital,
-          medRegId: contMedRegId,
-          doctorPhone: contPhone,
-          notes: contNotes,
-        }),
-      });
-      if (!r.ok) throw new Error();
-      setContMsg("✓ Continuity note added.");
-      setContDoctor("");
-      setContHospital("");
-      setContMedRegId("");
-      setContPhone("");
-      setContNotes("");
-      if (selectedPatient) await openPatient(selectedPatient.patientId);
-    } catch {
-      setContMsg("Failed to add continuity note.");
-    } finally {
-      setContLoading(false);
     }
   };
 
@@ -304,12 +260,28 @@ export function PatientsFolderPanel() {
                   </div>
                   {enc.crossHospitalContinuityLogs.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-border/40">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Continuity Notes</p>
+                      <p className="text-[10px] font-bold uppercase text-amber-400 mb-1.5 flex items-center gap-1">
+                        <Link2 className="w-3 h-3" /> Patient-Submitted External Notes ({enc.crossHospitalContinuityLogs.length})
+                      </p>
                       {enc.crossHospitalContinuityLogs.map((c) => (
-                        <div key={c.id} className="text-xs bg-background/40 rounded p-2 mb-1">
-                          <span className="font-semibold text-primary">{c.doctorName}</span>
-                          {c.hospital && <span className="text-muted-foreground"> @ {c.hospital}</span>}
-                          <p className="text-foreground mt-0.5">{c.notes}</p>
+                        <div key={c.id} className="text-xs bg-amber-500/5 border border-amber-500/20 rounded p-2.5 mb-1.5">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div>
+                              <span className="font-semibold text-amber-400">{c.doctorName}</span>
+                              {c.doctorId && <span className="text-muted-foreground font-mono ml-1.5">#{c.doctorId}</span>}
+                              {c.hospital && <span className="text-muted-foreground"> · {c.hospital}</span>}
+                            </div>
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-400 shrink-0">
+                              Unverified
+                            </Badge>
+                          </div>
+                          {c.medRegId && (
+                            <p className="text-muted-foreground font-mono text-[10px] mb-1">Reg. ID: {c.medRegId}</p>
+                          )}
+                          <p className="text-foreground/80 leading-relaxed">{c.notes}</p>
+                          <p className="text-muted-foreground/50 mt-1 text-[10px]">
+                            {new Date(c.timestamp).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -320,98 +292,19 @@ export function PatientsFolderPanel() {
           </Card>
         )}
 
-        {/* Continuity-of-Care Form */}
-        {selectedPatient.encounters.length > 0 && (
-          <Card className="border-blue-500/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold uppercase tracking-wider text-blue-400 flex items-center gap-2">
-                <FileText className="w-4 h-4" /> Cross-Hospital Continuity Note
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleContinuity} className="space-y-3">
-                <div>
-                  <Label className="text-xs">Encounter ID *</Label>
-                  <Select value={contEncounterId} onValueChange={setContEncounterId}>
-                    <SelectTrigger className="mt-1 text-sm bg-background/50">
-                      <SelectValue placeholder="Select encounter..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedPatient.encounters.map((e) => (
-                        <SelectItem key={e.encounterId} value={e.encounterId}>
-                          {e.encounterId} — {e.triageLevel}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Doctor Name *</Label>
-                    <Input
-                      placeholder="Dr. Name / ID"
-                      value={contDoctor}
-                      onChange={(e) => setContDoctor(e.target.value)}
-                      className="bg-background/50 mt-1 text-sm"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Hospital / Institution</Label>
-                    <Input
-                      placeholder="Hospital name..."
-                      value={contHospital}
-                      onChange={(e) => setContHospital(e.target.value)}
-                      className="bg-background/50 mt-1 text-sm"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Medical Reg. ID *</Label>
-                    <Input
-                      placeholder="e.g. MCI-2024-XXXXX"
-                      value={contMedRegId}
-                      onChange={(e) => setContMedRegId(e.target.value.toUpperCase())}
-                      className="bg-background/50 mt-1 text-sm font-mono"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Doctor Phone</Label>
-                    <Input
-                      type="tel"
-                      placeholder="+91 98765 43210"
-                      value={contPhone}
-                      onChange={(e) => setContPhone(e.target.value)}
-                      className="bg-background/50 mt-1 text-sm font-mono"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs">Clinical Notes *</Label>
-                  <Textarea
-                    placeholder="Enter clinical continuity notes..."
-                    value={contNotes}
-                    onChange={(e) => setContNotes(e.target.value)}
-                    className="bg-background/50 min-h-[60px] resize-none mt-1 text-sm"
-                    required
-                  />
-                </div>
-                {contMsg && (
-                  <p className={`text-xs p-2 rounded border font-medium ${
-                    contMsg.startsWith("✓")
-                      ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-                      : "text-destructive bg-destructive/10 border-destructive/20"
-                  }`}>{contMsg}</p>
-                )}
-                <Button type="submit" size="sm" disabled={contLoading} variant="outline" className="w-full border-blue-500/30 text-blue-400 hover:bg-blue-500/10">
-                  {contLoading ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <Send className="w-3 h-3 mr-2" />}
-                  Add Continuity Note
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        )}
+        {/* Staff notice — continuity notes are patient-submitted only */}
+        <Card className="border-amber-500/20 bg-amber-500/5">
+          <CardContent className="p-4 flex items-start gap-3">
+            <Eye className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-1">View Only — Cross-Hospital Continuity Notes</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                External treatment notes are submitted by the patient through their Patient Portal.
+                Staff can monitor and verify these records here, but cannot create them on the patient's behalf.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

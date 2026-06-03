@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import {
   User, Heart, Clock, LogOut, Activity, Bot, FileText,
   Phone, Mail, Calendar, Loader2, AlertTriangle, Stethoscope,
-  CheckCircle2, Shield,
+  CheckCircle2, Shield, Building2, Link2, Send, ChevronDown,
 } from "lucide-react";
 import { AiChatPanel } from "@/components/AiChatPanel";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import logoUrl from "@/assets/logo.png";
 
-type PatientView = "profile" | "history" | "visit" | "status" | "ai";
+type PatientView = "profile" | "history" | "visit" | "status" | "continuity" | "ai";
 
 interface PatientUser {
   name: string;
@@ -60,10 +60,11 @@ function PatientSidebar({
   patient: PatientUser | null;
 }) {
   const navItems: { view: PatientView; icon: React.ReactNode; label: string }[] = [
-    { view: "profile",  icon: <User className="w-4 h-4" />,          label: "My Profile" },
-    { view: "history",  icon: <FileText className="w-4 h-4" />,       label: "Medical History" },
-    { view: "visit",    icon: <Heart className="w-4 h-4" />,          label: "Current Visit" },
-    { view: "status",   icon: <Activity className="w-4 h-4" />,       label: "Emergency Status" },
+    { view: "profile",     icon: <User className="w-4 h-4" />,       label: "My Profile" },
+    { view: "history",     icon: <FileText className="w-4 h-4" />,    label: "Medical History" },
+    { view: "visit",       icon: <Heart className="w-4 h-4" />,       label: "Current Visit" },
+    { view: "status",      icon: <Activity className="w-4 h-4" />,    label: "Emergency Status" },
+    { view: "continuity",  icon: <Link2 className="w-4 h-4" />,       label: "External Treatment" },
   ];
 
   return (
@@ -93,12 +94,17 @@ function PatientSidebar({
             onClick={() => onNavigate(view)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left ${
               activeView === view
-                ? "bg-blue-500/15 text-blue-300 border border-blue-500/20"
+                ? view === "continuity"
+                  ? "bg-amber-500/15 text-amber-300 border border-amber-500/20"
+                  : "bg-blue-500/15 text-blue-300 border border-blue-500/20"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
             }`}
           >
             {icon}
             {label}
+            {view === "continuity" && activeView !== "continuity" && (
+              <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+            )}
           </button>
         ))}
 
@@ -192,52 +198,8 @@ function ProfileView({ patient }: { patient: PatientUser }) {
   );
 }
 
-interface NoteForm {
-  doctorName: string;
-  doctorId: string;
-  hospital: string;
-  medRegId: string;
-  doctorPhone: string;
-  notes: string;
-}
-
 function EncounterCard({ enc }: { enc: EncounterRecord }) {
   const colors = TRIAGE_COLORS[enc.triageLevel];
-  const [showNoteForm, setShowNoteForm] = useState(false);
-  const [noteForm, setNoteForm] = useState<NoteForm>({ doctorName: "", doctorId: "", hospital: "", medRegId: "", doctorPhone: "", notes: "" });
-  const [noteLoading, setNoteLoading] = useState(false);
-  const [noteResult, setNoteResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [localLogs, setLocalLogs] = useState(enc.crossHospitalContinuityLogs);
-
-  const handleNoteSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!noteForm.doctorName.trim() || !noteForm.notes.trim()) {
-      setNoteResult({ success: false, message: "Doctor name and treatment notes are required." });
-      return;
-    }
-    setNoteLoading(true);
-    try {
-      const res = await fetch(`/api/triage/encounters/${enc.encounterId}/continuity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(noteForm),
-      });
-      const data = await res.json() as { success?: boolean; entry?: ContinuityEntry; error?: string };
-      if (!res.ok || !data.success) {
-        setNoteResult({ success: false, message: data.error ?? "Failed to add note." });
-      } else {
-        if (data.entry) setLocalLogs((prev) => [...prev, data.entry!]);
-        setNoteForm({ doctorName: "", doctorId: "", hospital: "", medRegId: "", doctorPhone: "", notes: "" });
-        setShowNoteForm(false);
-        setNoteResult({ success: true, message: "Note added successfully." });
-      }
-    } catch {
-      setNoteResult({ success: false, message: "Network error." });
-    } finally {
-      setNoteLoading(false);
-    }
-  };
-
   return (
     <Card className={`border ${
       enc.triageLevel === "RED" ? "border-red-500/40" : enc.triageLevel === "YELLOW" ? "border-yellow-500/30" : "border-emerald-500/20"
@@ -258,33 +220,22 @@ function EncounterCard({ enc }: { enc: EncounterRecord }) {
           <span className="flex items-center gap-1"><Stethoscope className="w-3 h-3" />{enc.assignedDoctor}</span>
         </div>
 
-        {/* Doctor Medical Notes / Cross-Hospital Observations Timeline */}
-        <div className="mt-4 pt-3 border-t border-border/30">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <Shield className="w-3 h-3" /> Doctor Medical Notes / Cross-Hospital Observations
+        {enc.crossHospitalContinuityLogs.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-border/30">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 mb-2">
+              <Link2 className="w-3 h-3" /> External Treatment Notes ({enc.crossHospitalContinuityLogs.length})
             </p>
-            <button
-              onClick={() => { setShowNoteForm((v) => !v); setNoteResult(null); }}
-              className="text-[10px] font-semibold text-primary hover:underline flex items-center gap-1"
-            >
-              {showNoteForm ? "Cancel" : "+ Add Note"}
-            </button>
-          </div>
-
-          {/* Existing notes timeline */}
-          {localLogs.length > 0 ? (
-            <div className="space-y-2 mb-3">
-              {localLogs.map((c) => (
+            <div className="space-y-2">
+              {enc.crossHospitalContinuityLogs.map((c) => (
                 <div key={c.id} className="bg-background/40 border border-border/30 rounded-lg p-3 text-xs">
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <div>
-                      <span className="font-semibold text-primary">{c.doctorName}</span>
+                      <span className="font-semibold text-amber-400">{c.doctorName}</span>
                       {c.doctorId && <span className="text-muted-foreground font-mono ml-1.5">#{c.doctorId}</span>}
                       {c.hospital && <span className="text-muted-foreground"> · {c.hospital}</span>}
                     </div>
                     <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-400 shrink-0">
-                      Unverified
+                      {c.verificationStatus ?? "Unverified"}
                     </Badge>
                   </div>
                   <p className="text-foreground/80 leading-relaxed">{c.notes}</p>
@@ -294,100 +245,8 @@ function EncounterCard({ enc }: { enc: EncounterRecord }) {
                 </div>
               ))}
             </div>
-          ) : (
-            !showNoteForm && (
-              <p className="text-xs text-muted-foreground/50 italic mb-3">No doctor observations recorded yet for this encounter.</p>
-            )
-          )}
-
-          {/* Inline add note form */}
-          {showNoteForm && (
-            <form onSubmit={handleNoteSubmit} className="space-y-3 bg-primary/5 border border-primary/15 rounded-lg p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-2">Add Doctor / Cross-Hospital Observation</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-muted-foreground uppercase">Doctor Name *</label>
-                  <input
-                    type="text"
-                    placeholder="Dr. Full Name"
-                    value={noteForm.doctorName}
-                    onChange={(e) => setNoteForm((p) => ({ ...p, doctorName: e.target.value }))}
-                    className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-muted-foreground uppercase">Doctor ID</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. DOC101"
-                    value={noteForm.doctorId}
-                    onChange={(e) => setNoteForm((p) => ({ ...p, doctorId: e.target.value.toUpperCase() }))}
-                    className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase">Workplace / Hospital</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Sapthagiri NPS Medical Center"
-                  value={noteForm.hospital}
-                  onChange={(e) => setNoteForm((p) => ({ ...p, hospital: e.target.value }))}
-                  className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-muted-foreground uppercase">Medical Reg. ID *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. MCI-2024-XXXXX"
-                    value={noteForm.medRegId}
-                    onChange={(e) => setNoteForm((p) => ({ ...p, medRegId: e.target.value.toUpperCase() }))}
-                    className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-muted-foreground uppercase">Doctor Phone</label>
-                  <input
-                    type="tel"
-                    placeholder="+91 98765 43210"
-                    value={noteForm.doctorPhone}
-                    onChange={(e) => setNoteForm((p) => ({ ...p, doctorPhone: e.target.value }))}
-                    className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase">Treatment Notes *</label>
-                <textarea
-                  rows={3}
-                  placeholder="Clinical observations, treatment administered, follow-up instructions..."
-                  value={noteForm.notes}
-                  onChange={(e) => setNoteForm((p) => ({ ...p, notes: e.target.value }))}
-                  className="w-full rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-primary/40"
-                />
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-[10px] text-amber-400">
-                  <AlertTriangle className="w-3 h-3" />
-                  <span>Verification Status: <strong>Unverified</strong> (default)</span>
-                </div>
-                <button
-                  type="submit"
-                  disabled={noteLoading}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  {noteLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                  {noteLoading ? "Saving…" : "Add to Timeline"}
-                </button>
-              </div>
-              {noteResult && !noteResult.success && (
-                <p className="text-xs text-destructive">{noteResult.message}</p>
-              )}
-            </form>
-          )}
-        </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -538,6 +397,311 @@ function EmergencyStatusView({ encounters }: { encounters: EncounterRecord[] }) 
   );
 }
 
+interface ContinuityFormState {
+  encounterId: string;
+  doctorName: string;
+  doctorId: string;
+  hospital: string;
+  medRegId: string;
+  doctorPhone: string;
+  notes: string;
+}
+
+const EMPTY_FORM: ContinuityFormState = {
+  encounterId: "", doctorName: "", doctorId: "", hospital: "",
+  medRegId: "", doctorPhone: "", notes: "",
+};
+
+function ContinuityView({
+  encounters,
+  loading,
+  onNoteAdded,
+}: {
+  encounters: EncounterRecord[];
+  loading: boolean;
+  onNoteAdded: () => void;
+}) {
+  const [form, setForm] = useState<ContinuityFormState>(EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const set = (key: keyof ContinuityFormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    setForm((p) => ({ ...p, [key]: e.target.value }));
+    setResult(null);
+  };
+
+  const allNotes = encounters
+    .flatMap((enc) =>
+      enc.crossHospitalContinuityLogs.map((note) => ({
+        ...note,
+        encounterId: enc.encounterId,
+        triageLevel: enc.triageLevel,
+      }))
+    )
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.encounterId) { setResult({ success: false, message: "Please select an encounter to attach this note to." }); return; }
+    if (!form.doctorName.trim()) { setResult({ success: false, message: "Doctor name is required." }); return; }
+    if (!form.medRegId.trim()) { setResult({ success: false, message: "Medical Registration ID is required." }); return; }
+    if (!form.notes.trim()) { setResult({ success: false, message: "Treatment notes are required." }); return; }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/triage/encounters/${form.encounterId}/continuity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doctorName: form.doctorName.trim(),
+          doctorId: form.doctorId.trim(),
+          hospital: form.hospital.trim(),
+          medRegId: form.medRegId.trim(),
+          doctorPhone: form.doctorPhone.trim(),
+          notes: form.notes.trim(),
+        }),
+      });
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (!res.ok || !data.success) {
+        setResult({ success: false, message: data.error ?? "Failed to submit note." });
+      } else {
+        setResult({ success: true, message: "External treatment note submitted. Hospital staff can now view it in your records." });
+        setForm((p) => ({ ...EMPTY_FORM, encounterId: p.encounterId }));
+        onNoteAdded();
+      }
+    } catch {
+      setResult({ success: false, message: "Network error. Please try again." });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20 text-muted-foreground">
+      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading...
+    </div>
+  );
+
+  return (
+    <div className="p-6 max-w-2xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <Link2 className="w-5 h-5 text-amber-400" /> Cross-Hospital Continuity Notes
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1.5">
+          If you received treatment at another hospital or clinic, submit those details here.
+          Your Sapthagiri hospital staff will be able to view and verify this information automatically.
+        </p>
+      </div>
+
+      {encounters.length === 0 ? (
+        <Card className="border-amber-500/20">
+          <CardContent className="p-8 text-center">
+            <Building2 className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="font-semibold text-foreground mb-1">No Encounters Found</p>
+            <p className="text-sm text-muted-foreground">
+              You need at least one triage encounter at Sapthagiri before submitting an external treatment note.
+              Please visit the Emergency Department first.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <Card className="border-amber-500/20 bg-amber-500/5 mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                <Building2 className="w-4 h-4" /> Add External Treatment Note
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Fill in details about the doctor and treatment you received outside Sapthagiri.
+                Required fields are marked *.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+
+                {/* Encounter selector */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Link to Encounter *
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={form.encounterId}
+                      onChange={set("encounterId")}
+                      className="w-full appearance-none rounded-md border border-border bg-background/60 px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500/40"
+                    >
+                      <option value="">Select a hospital encounter to attach to…</option>
+                      {encounters.map((enc) => (
+                        <option key={enc.encounterId} value={enc.encounterId}>
+                          {enc.encounterId} — {enc.triageLevel} · {new Date(enc.timestamp).toLocaleDateString()}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* Row: Doctor Name + Doctor ID */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Doctor Name *</label>
+                    <input
+                      type="text"
+                      placeholder="Dr. Full Name"
+                      value={form.doctorName}
+                      onChange={set("doctorName")}
+                      className="w-full rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/40"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Doctor ID</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. DOC101"
+                      value={form.doctorId}
+                      onChange={(e) => { setForm((p) => ({ ...p, doctorId: e.target.value.toUpperCase() })); setResult(null); }}
+                      className="w-full rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/40"
+                    />
+                  </div>
+                </div>
+
+                {/* Hospital / Workplace */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Hospital / Workplace</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. City General Hospital, New Delhi"
+                    value={form.hospital}
+                    onChange={set("hospital")}
+                    className="w-full rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/40"
+                  />
+                </div>
+
+                {/* Row: Med Reg ID + Doctor Phone */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Medical Reg. ID *
+                      <span className="normal-case text-[10px] text-muted-foreground/60 ml-1">(legal verification)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. MCI-2024-XXXXX"
+                      value={form.medRegId}
+                      onChange={(e) => { setForm((p) => ({ ...p, medRegId: e.target.value.toUpperCase() })); setResult(null); }}
+                      className="w-full rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/40"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Doctor Phone</label>
+                    <input
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                      value={form.doctorPhone}
+                      onChange={set("doctorPhone")}
+                      className="w-full rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/40"
+                    />
+                  </div>
+                </div>
+
+                {/* Treatment Notes */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Treatment Notes / Observations *</label>
+                  <textarea
+                    rows={4}
+                    placeholder="Describe the external treatment received, medications prescribed, diagnoses made, follow-up instructions, etc."
+                    value={form.notes}
+                    onChange={set("notes")}
+                    className="w-full rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-amber-500/40"
+                  />
+                </div>
+
+                {/* Timestamp note */}
+                <p className="text-[10px] text-muted-foreground/50 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Timestamp will be recorded automatically at time of submission.
+                </p>
+
+                {result && (
+                  <div className={`text-sm p-3 rounded-md border font-medium ${
+                    result.success
+                      ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                      : "text-destructive bg-destructive/10 border-destructive/20"
+                  }`}>
+                    {result.success && <CheckCircle2 className="w-3.5 h-3.5 inline mr-1.5" />}
+                    {result.message}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-amber-600 hover:bg-amber-500 text-white border-0"
+                >
+                  {submitting
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…</>
+                    : <><Send className="w-4 h-4 mr-2" /> Submit External Treatment Note</>}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Timeline of all submitted notes */}
+          {allNotes.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                <Clock className="w-4 h-4" /> Submitted Notes ({allNotes.length})
+              </h3>
+              <div className="space-y-3">
+                {allNotes.map((note) => (
+                  <Card key={note.id} className="border-amber-500/20 bg-amber-500/5">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div>
+                          <span className="font-semibold text-amber-400 text-sm">{note.doctorName}</span>
+                          {note.doctorId && <span className="text-muted-foreground font-mono text-xs ml-2">#{note.doctorId}</span>}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="outline" className={`text-[9px] font-bold ${TRIAGE_COLORS[note.triageLevel as "RED" | "YELLOW" | "GREEN"].badge}`}>
+                            {note.triageLevel}
+                          </Badge>
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-500/30 text-amber-400">
+                            Unverified
+                          </Badge>
+                        </div>
+                      </div>
+                      {note.hospital && (
+                        <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                          <Building2 className="w-3 h-3" /> {note.hospital}
+                        </p>
+                      )}
+                      {note.medRegId && (
+                        <p className="text-xs text-muted-foreground mb-2 font-mono">Reg. ID: {note.medRegId}</p>
+                      )}
+                      <p className="text-sm text-foreground/80 leading-relaxed">{note.notes}</p>
+                      <p className="text-[10px] text-muted-foreground/50 mt-2 font-mono">
+                        {new Date(note.timestamp).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                        {" · "}Encounter: {note.encounterId}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {allNotes.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground/50">
+              <Link2 className="w-8 h-8 mx-auto mb-2" />
+              <p className="text-sm">No external treatment notes submitted yet.</p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function PatientPortal() {
   const [, setLocation] = useLocation();
   const [patient, setPatient] = useState<PatientUser | null>(null);
@@ -548,6 +712,14 @@ export default function PatientPortal() {
   const [ambulanceState, setAmbulanceState] = useState<"idle" | "dispatching" | "dispatched">("idle");
   const [ambulanceMsg, setAmbulanceMsg] = useState("");
 
+  const fetchEncounters = useCallback((patientId: string) => {
+    setLoadingEnc(true);
+    fetch(`/api/triage/patient/${patientId}`)
+      .then((r) => r.json())
+      .then((data: EncounterRecord[]) => { setEncounters(data); setLoadingEnc(false); })
+      .catch(() => setLoadingEnc(false));
+  }, []);
+
   useEffect(() => {
     const stored = localStorage.getItem("sapthagiri_user");
     if (!stored) { setLocation("/login"); return; }
@@ -555,17 +727,11 @@ export default function PatientPortal() {
       const user = JSON.parse(stored) as PatientUser;
       if (user.role === "staff") { setLocation("/dashboard"); return; }
       setPatient(user);
-      if (user.patientId) {
-        setLoadingEnc(true);
-        fetch(`/api/triage/patient/${user.patientId}`)
-          .then((r) => r.json())
-          .then((data: EncounterRecord[]) => { setEncounters(data); setLoadingEnc(false); })
-          .catch(() => setLoadingEnc(false));
-      }
+      if (user.patientId) fetchEncounters(user.patientId);
     } catch {
       setLocation("/login");
     }
-  }, [setLocation]);
+  }, [setLocation, fetchEncounters]);
 
   useEffect(() => {
     if (activeView === "ai") setAiOpen(true);
@@ -608,7 +774,6 @@ export default function PatientPortal() {
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">
-      {/* Header */}
       <header className="border-b border-border bg-card px-6 py-3 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-blue-500/20 p-2 rounded-md">
@@ -644,14 +809,20 @@ export default function PatientPortal() {
         </div>
       </header>
 
-      {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         <PatientSidebar activeView={activeView} onNavigate={setActiveView} patient={patient} />
         <main className="flex-1 overflow-auto">
-          {activeView === "profile"  && <ProfileView patient={patient} />}
-          {activeView === "history"  && <HistoryView encounters={encounters} loading={loadingEnc} />}
-          {activeView === "visit"    && <CurrentVisitView encounters={encounters} loading={loadingEnc} />}
-          {activeView === "status"   && <EmergencyStatusView encounters={encounters} />}
+          {activeView === "profile"     && <ProfileView patient={patient} />}
+          {activeView === "history"     && <HistoryView encounters={encounters} loading={loadingEnc} />}
+          {activeView === "visit"       && <CurrentVisitView encounters={encounters} loading={loadingEnc} />}
+          {activeView === "status"      && <EmergencyStatusView encounters={encounters} />}
+          {activeView === "continuity"  && (
+            <ContinuityView
+              encounters={encounters}
+              loading={loadingEnc}
+              onNoteAdded={() => patient.patientId && fetchEncounters(patient.patientId)}
+            />
+          )}
           {activeView === "ai" && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
