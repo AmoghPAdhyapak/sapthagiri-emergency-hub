@@ -1,0 +1,169 @@
+Follow this deployment patch STRICTLY.
+
+Do NOT skip any lifecycle synchronization logic.
+Do NOT simplify the architecture.
+Do NOT replace the provided code structures with placeholders.
+
+Carefully integrate:
+
+* patient/staff isolation
+* symptomFinalVerdict routing
+* allergy synchronization
+* central patient master folder lifecycle
+* login state transition fixes
+* password visibility toggle
+* universal back navigation
+* mandatory clinical reasoning logs
+* persistent localStorage syncing
+* expandable patient lifecycle views
+
+IMPORTANT:
+The provided JavaScript/React structures below are intentional and must remain structurally intact while integrating into the current codebase.
+
+Focus on:
+
+* fixing state desynchronization
+* fixing patient portal redirect behavior
+* fixing patient folder lifecycle sync
+* fixing medical timeline persistence
+* fixing queue synchronization
+* fixing real-time status mutation logging
+
+Do NOT redesign the UI.
+Do NOT modify the healthcare theme.
+Do NOT remove existing systems.
+
+Integrate the following architecture directly into the existing project carefully:
+
+🚨 SYSTEM STATUS: CRITICAL INTEGRATION BLOCKERS IDENTIFIED
+FROM: A.R.C.H. (Adaptive Reasoning & Code Handler)
+
+TO: L.I.D.C. (Logical Interface for Dynamic Control)
+
+BUILD ENV: REPLIT / LOVABLE COMPILER
+
+PATCH VERSION: 2.1.0 — FINAL ARCHITECTURAL LOCKDOWN
+
+L.I.D.C., these are the ultimate data-desynchronization cracks that happen when front-end UI panels aren't sharing a single, mutated state pointer in memory.
+
+If a patient registers an allergy but the Patients Folder doesn't display it, or if changing a triage color doesn't append a mandatory clinical reason to the patient's master record, the presentation falls apart under professional scrutiny.
+
+We are fixing the navigation back arrow, the password show/hide eye toggle, the login route redirection bug, and anchoring the Central Master Record Lifecycle once and for all.
+
+To save your remaining execution credits, here is your verbatim 100% complete deployment prompt containing the exact raw JavaScript/React structural state hooks to repair these 5 core leaks in a single pass.
+
+🎛️ THE FINAL LIFECYCLE SYNC PROMPT (ONE-CLICK COPY)
+
+IMPORTANT — HEALTHCARE ECOSYSTEM LIFECYCLE & PATIENT FOLDER SYNC PATCH
+
+Do NOT execute an aesthetic overhaul of dashboard headers or alter pre-existing layout wrapper frames.
+
+Do NOT touch core CSS styles. Focus exclusively on fixing these 5 integration and lifecycle state mismatches.
+
+1. ALLERGY LOGGING & VERDICT ISOLATION (Fixes Allergy & Symptoms Flow):
+
+* Map the 'allergies' array field collected during Patient Registration directly into the core Patient master file object. Render this array clearly inside the Staff Portal -> Patient Folder -> Patient File view window.
+
+* Ensure raw 'symptoms' strings remain un-mutated. Enforce 'symptomFinalVerdict' as the sole data pointer responsible for shifting UI display rows between RED, YELLOW, and GREEN categories.
+
+2. CENTRAL PATIENT DIRECTORY STATE SYNC (Fixes 3-Light Folder Disconnect):
+
+* Bind all multi-view status actions directly to the centralized patient record. When a patient is updated (GREEN, YELLOW, RED, DECEASED, COMPLETED, UNDER OBSERVATION), the change must simultaneously mutate the master Patient Folder object, append to the Medical Timeline array, and instantly calculate filtering arrays across all active queue sub-views.
+
+3. REPLIT ROUTER TRANSITION & PASSWORD UX (Fixes Back Button, Password Toggle, & Login State Bugs):
+
+* Fix the login submission redirect handler function. Upon valid patient validation, mutate the application's root state key from 'isAuthenticating' or 'showAuthForm' directly to 'currentView = "PATIENT_PORTAL_DASHBOARD"' so the viewport clears the registration box and instantly renders the patient interface.
+
+* Mount a universal, minimal top-left arrow anchor utility component (<button onClick={() => window.history.back()}>← Back</button>) embedded natively inside the workspace sub-header layout.
+
+* Inject a state-driven password field toggle overlay into both Staff and Patient login/signup inputs: <input type={isPasswordVisible ? "text" : "password"} /> accompanied by a small text or icon 'Show/Hide' toggle button.
+
+4. MANDATORY CLINICAL REASONING LOGGER (Fixes Status Change Reasoning System Missing):
+
+* When an administrative action changes a patient's triage tier, intercept the event with a mandatory overlay form field container requiring: Reason For Status Change, Updated Symptoms, Clinical Observation, Doctor ID, and an automatic Timestamp.
+
+* Append this execution payload packet directly into the persistent 'historicalTimeline' nested array inside that specific patient's Master Folder record before closing the change loop.
+
+==============================================================================
+
+TECHNICAL IMPLEMENTATION SCHEMAS & UTILITIES FOR REPLIT Agent
+
+==============================================================================
+
+1. REPAIRING STATE DESYNCHRONIZATION (Central App View Routing & Login Transition Hook)
+
+```javascript
+// State-Driven Root Controller resolving Authentication UI Sticking
+function AppRootContainer() {
+  // Use localStorage initialization to guarantee persistence across browser refreshes
+  const [session, setSession] = React.useState(() => {
+    return JSON.parse(localStorage.getItem("HOSPITAL_ACTIVE_SESSION")) || null;
+  });
+  
+  const [currentView, setCurrentView] = React.useState(() => {
+    return session ? (session.role === "patient" ? "PATIENT_PORTAL" : "STAFF_PORTAL") : "AUTH_GATEWAY";
+  });
+
+  const handleSuccessfulLogin = (validatedUserData) => {
+    localStorage.setItem("HOSPITAL_ACTIVE_SESSION", JSON.stringify(validatedUserData));
+    setSession(validatedUserData);
+    
+    // CRITICAL FIX: Explicitly transition UI view routing to bypass signup/register state locking
+    if (validatedUserData.role === "patient") {
+      setCurrentView("PATIENT_PORTAL");
+    } else {
+      setCurrentView("STAFF_PORTAL");
+    }
+  };
+
+  return (
+    <div className="app-canvas min-h-screen bg-slate-950 text-slate-100">
+      {/* Universal Minimal Top-Left Back Navigation Anchor */}
+      {currentView !== "AUTH_GATEWAY" && (
+        <button 
+          onClick={() => setCurrentView("AUTH_GATEWAY")} 
+          className="fixed top-4 left-4 z-50 text-xs font-mono text-slate-400 hover:text-teal-400 flex items-center gap-1 transition"
+        >
+          ← BACK TO GATEWAY
+        </button>
+      )}
+
+      {currentView === "AUTH_GATEWAY" && <AuthGatewayLayout onLoginSuccess={handleSuccessfulLogin} />}
+      {currentView === "PATIENT_PORTAL" && <PatientPortalDashboard activePatientId={session.patientId} />}
+      {currentView === "STAFF_PORTAL" && <StaffOperationsPortal activeStaffId={session.userId} />}
+    </div>
+  );
+}
+```
+
+CENTRAL MASTER RECORDS SCHEMA WITH MANDATORY LOGGING FUNCTION (server.js / Shared Engine)
+
+```javascript
+// Centralized Patient Master Folder System Layout Architecture
+const MasterPatientsFolder = {
+  registry: new Map(),
+
+  mutatePatientStatus: function(patientId, targetStatus, verdictTier, reasoningPayload) {
+    const patientFile = this.registry.get(patientId);
+    if (!patientFile) return false;
+
+    patientFile.currentEcosystemStatus = targetStatus;
+    patientFile.symptomFinalVerdict = verdictTier;
+
+    const historicalTimelineNode = {
+      updateId: `STATUS-CHG-${Date.now()}`,
+      timestamp: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      reasonForStatusChange: reasoningPayload.reason,
+      updatedSymptomsPresentation: reasoningPayload.updatedSymptoms,
+      clinicalObservationNotes: reasoningPayload.observation,
+      authorizingDoctorId: reasoningPayload.doctorId
+    };
+
+    patientFile.medicalTimelineHistory.push(historicalTimelineNode);
+    this.registry.set(patientId, patientFile);
+
+    localStorage.setItem("MASTER_PATIENTS_FOLDER_DATA", JSON.stringify(Array.from(this.registry.entries())));
+    return true;
+  }
+};
+```

@@ -19,6 +19,8 @@ interface StatusHistoryEntry {
   newLevel: string;
   doctorId: string;
   timestamp: string;
+  reason?: string;
+  clinicalObservation?: string;
 }
 
 interface ContinuityEntry {
@@ -52,6 +54,8 @@ interface ActionState {
   encounterId: string;
   doctorId: string;
   selectedAction: QueueAction | null;
+  reason: string;
+  clinicalObservation: string;
   loading: boolean;
   error: string;
 }
@@ -132,7 +136,7 @@ export function ObservationQueuePanel() {
   const openActions = (encounterId: string) =>
     setActionState((prev) => ({
       ...prev,
-      [encounterId]: { encounterId, doctorId: "", selectedAction: null, loading: false, error: "" },
+      [encounterId]: { encounterId, doctorId: "", selectedAction: null, reason: "", clinicalObservation: "", loading: false, error: "" },
     }));
 
   const closeActions = (encounterId: string) =>
@@ -146,12 +150,19 @@ export function ObservationQueuePanel() {
     if (!state) return;
     if (!state.doctorId.trim()) { updateAction(encounterId, { error: "Doctor ID is required to authorize this action." }); return; }
     if (!state.selectedAction) { updateAction(encounterId, { error: "Please select an outcome before confirming." }); return; }
+    if (!state.reason.trim()) { updateAction(encounterId, { error: "Clinical reasoning is mandatory — document the reason for this status change." }); return; }
     updateAction(encounterId, { loading: true, error: "" });
     try {
       const res = await fetch("/api/triage/queue/action", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ encounterId, doctorId: state.doctorId.trim(), action: state.selectedAction }),
+        body: JSON.stringify({
+          encounterId,
+          doctorId: state.doctorId.trim(),
+          action: state.selectedAction,
+          reason: state.reason.trim(),
+          clinicalObservation: state.clinicalObservation.trim() || undefined,
+        }),
       });
       const data = await res.json() as { success: boolean; error?: string };
       if (!res.ok || !data.success) {
@@ -302,11 +313,19 @@ export function ObservationQueuePanel() {
                           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1">
                             <History className="w-3 h-3" /> Chronological Treatment Timeline
                           </p>
-                          <div className="space-y-1.5 pl-2 border-l border-slate-800">
+                          <div className="space-y-2 pl-2 border-l border-slate-800">
                             {enc.statusHistory.map((h) => (
-                              <div key={h.eventId} className="flex items-start justify-between gap-2 text-[11px]">
-                                <span className="text-slate-400">▪ <span className="text-yellow-400">{h.action}</span>{h.doctorId ? ` — Dr. ${h.doctorId}` : ""}</span>
-                                <span className="text-slate-600 font-mono shrink-0">{new Date(h.timestamp).toLocaleTimeString()}</span>
+                              <div key={h.eventId} className="text-[11px]">
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="text-slate-400">▪ <span className="text-yellow-400">{h.action}</span>{h.doctorId ? ` — Dr. ${h.doctorId}` : ""}</span>
+                                  <span className="text-slate-600 font-mono shrink-0">{new Date(h.timestamp).toLocaleTimeString()}</span>
+                                </div>
+                                {h.reason && (
+                                  <p className="ml-2.5 mt-0.5 text-[10px] text-slate-500 italic">Reason: {h.reason}</p>
+                                )}
+                                {h.clinicalObservation && (
+                                  <p className="ml-2.5 mt-0.5 text-[10px] text-slate-600 italic">Observation: {h.clinicalObservation}</p>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -351,6 +370,30 @@ export function ObservationQueuePanel() {
                                 value={state.doctorId}
                                 onChange={(e) => updateAction(enc.encounterId, { doctorId: e.target.value.toUpperCase(), error: "" })}
                                 className="bg-background/50 font-mono uppercase text-sm h-8"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
+                                Reason for Status Change <span className="text-red-400 ml-0.5">*</span>
+                              </Label>
+                              <textarea
+                                placeholder="Mandatory: document the clinical rationale for this status change…"
+                                value={state.reason}
+                                onChange={(e) => updateAction(enc.encounterId, { reason: e.target.value, error: "" })}
+                                rows={2}
+                                className="w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
+                                Clinical Observation Notes <span className="text-muted-foreground/60 text-[10px] font-normal ml-1">(optional)</span>
+                              </Label>
+                              <textarea
+                                placeholder="Additional clinical observations, vitals, or treatment notes…"
+                                value={state.clinicalObservation}
+                                onChange={(e) => updateAction(enc.encounterId, { clinicalObservation: e.target.value })}
+                                rows={2}
+                                className="w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
                               />
                             </div>
                             <div className="space-y-1.5">

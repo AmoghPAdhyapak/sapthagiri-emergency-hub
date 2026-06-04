@@ -41,6 +41,8 @@ interface StatusHistoryEntry {
   newLevel: string;
   doctorId: string;
   timestamp: string;
+  reason?: string;
+  clinicalObservation?: string;
 }
 
 interface EncounterRecord {

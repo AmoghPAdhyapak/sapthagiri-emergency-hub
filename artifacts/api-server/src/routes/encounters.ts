@@ -20,6 +20,8 @@ export interface StatusHistoryEntry {
   newLevel: string;
   doctorId: string;
   timestamp: string;
+  reason?: string;
+  clinicalObservation?: string;
 }
 
 export interface EncounterRecord {
@@ -187,7 +189,7 @@ router.post("/encounters/:id/continuity", (req, res) => {
 
 // PATCH /api/triage/emergency-hub/action
 router.patch("/emergency-hub/action", (req, res) => {
-  const { encounterId, doctorId, statusAction } = req.body || {};
+  const { encounterId, doctorId, statusAction, reason, clinicalObservation } = req.body || {};
 
   if (!doctorId) {
     res.status(403).json({ success: false, error: "Access Denied. Valid Licensed Doctor ID required." });
@@ -195,6 +197,10 @@ router.patch("/emergency-hub/action", (req, res) => {
   }
   if (!encounterId || !statusAction) {
     res.status(400).json({ success: false, error: "encounterId and statusAction required." });
+    return;
+  }
+  if (!reason || !String(reason).trim()) {
+    res.status(400).json({ success: false, error: "Clinical reasoning is mandatory. Provide a reason for the status change." });
     return;
   }
 
@@ -205,6 +211,8 @@ router.patch("/emergency-hub/action", (req, res) => {
   }
 
   const ts = new Date().toISOString();
+  const reasonStr = String(reason).trim();
+  const observationStr = clinicalObservation ? String(clinicalObservation).trim() : undefined;
 
   if (statusAction === "OUT_OF_DANGER") {
     activeEncounter.triageLevel = "GREEN";
@@ -216,6 +224,8 @@ router.patch("/emergency-hub/action", (req, res) => {
       newLevel: "GREEN",
       doctorId: String(doctorId),
       timestamp: ts,
+      reason: reasonStr,
+      clinicalObservation: observationStr,
     });
   } else if (statusAction === "UNDER_OBSERVATION") {
     activeEncounter.triageLevel = "YELLOW";
@@ -227,6 +237,8 @@ router.patch("/emergency-hub/action", (req, res) => {
       newLevel: "YELLOW",
       doctorId: String(doctorId),
       timestamp: ts,
+      reason: reasonStr,
+      clinicalObservation: observationStr,
     });
   } else if (statusAction === "DECEASED") {
     activeEncounter.isArchived = true;
@@ -240,6 +252,8 @@ router.patch("/emergency-hub/action", (req, res) => {
       newLevel: "DECEASED",
       doctorId: String(doctorId),
       timestamp: ts,
+      reason: reasonStr,
+      clinicalObservation: observationStr,
     });
   } else {
     res.status(400).json({ success: false, error: "Invalid statusAction. Must be OUT_OF_DANGER, UNDER_OBSERVATION, or DECEASED." });
@@ -257,7 +271,7 @@ router.patch("/emergency-hub/action", (req, res) => {
 
 // PATCH /api/triage/queue/action — universal action endpoint for all triage zones
 router.patch("/queue/action", (req, res) => {
-  const { encounterId, doctorId, action } = req.body || {};
+  const { encounterId, doctorId, action, reason, clinicalObservation } = req.body || {};
 
   if (!doctorId) {
     res.status(403).json({ success: false, error: "Doctor ID required to authorize this action." });
@@ -265,6 +279,10 @@ router.patch("/queue/action", (req, res) => {
   }
   if (!encounterId || !action) {
     res.status(400).json({ success: false, error: "encounterId and action are required." });
+    return;
+  }
+  if (!reason || !String(reason).trim()) {
+    res.status(400).json({ success: false, error: "Clinical reasoning is mandatory. Provide a reason for the status change." });
     return;
   }
 
@@ -276,6 +294,8 @@ router.patch("/queue/action", (req, res) => {
 
   const previousLevel = enc.triageLevel;
   const ts = new Date().toISOString();
+  const reasonStr = String(reason).trim();
+  const observationStr = clinicalObservation ? String(clinicalObservation).trim() : undefined;
 
   if (!enc.statusHistory) enc.statusHistory = [];
 
@@ -290,6 +310,8 @@ router.patch("/queue/action", (req, res) => {
       newLevel: previousLevel,
       doctorId: String(doctorId),
       timestamp: ts,
+      reason: reasonStr,
+      clinicalObservation: observationStr,
     });
   } else if (action === "ESCALATE") {
     const nextLevel = previousLevel === "GREEN" ? "YELLOW" : previousLevel === "YELLOW" ? "RED" : null;
@@ -306,6 +328,8 @@ router.patch("/queue/action", (req, res) => {
       newLevel: nextLevel,
       doctorId: String(doctorId),
       timestamp: ts,
+      reason: reasonStr,
+      clinicalObservation: observationStr,
     });
   } else if (action === "UNDER_OBSERVATION") {
     enc.completionStatus = "ONGOING";
@@ -316,6 +340,8 @@ router.patch("/queue/action", (req, res) => {
       newLevel: previousLevel,
       doctorId: String(doctorId),
       timestamp: ts,
+      reason: reasonStr,
+      clinicalObservation: observationStr,
     });
   } else if (action === "DECEASED") {
     enc.isArchived = true;
@@ -329,6 +355,8 @@ router.patch("/queue/action", (req, res) => {
       newLevel: "DECEASED",
       doctorId: String(doctorId),
       timestamp: ts,
+      reason: reasonStr,
+      clinicalObservation: observationStr,
     });
   } else {
     res.status(400).json({ success: false, error: "Invalid action. Must be COMPLETED, ESCALATE, UNDER_OBSERVATION, or DECEASED." });
