@@ -7,6 +7,7 @@ export interface PatientUser {
   age: string;
   email: string;
   password: string;
+  allergies: string[];
   role: "patient";
   createdAt: string;
 }
@@ -35,11 +36,17 @@ function normalizePhone(raw: string): string {
   return d;
 }
 
+function parseAllergies(raw: unknown): string[] {
+  if (Array.isArray(raw)) return (raw as string[]).map(String).filter(Boolean);
+  if (typeof raw === "string" && raw.trim()) return raw.split(",").map((a) => a.trim()).filter(Boolean);
+  return [];
+}
+
 const router = Router();
 
 // POST /api/auth/patient/register
 router.post("/patient/register", (req, res) => {
-  const { name, phone, age, email, password } = req.body || {};
+  const { name, phone, age, email, password, allergies } = req.body || {};
   if (!name || !phone || !password) {
     res.status(400).json({ error: "name, phone, password required" });
     return;
@@ -60,6 +67,7 @@ router.post("/patient/register", (req, res) => {
     age: String(age || ""),
     email: String(email || ""),
     password: String(password),
+    allergies: parseAllergies(allergies),
     role: "patient",
     createdAt: new Date().toISOString(),
   };
@@ -79,39 +87,47 @@ router.post("/patient/login", (req, res) => {
 
   let patient: PatientUser | undefined;
 
-  if (loginType === "NAME_PASSWORD" || (!phone && name)) {
-    // Name + Password mode
-    if (!name) {
-      res.status(400).json({ error: "name required for name-based login" });
-      return;
-    }
+  if (loginType === "NAME_PASSWORD" && name) {
     patient = [...patientsFolder.values()].find(
-      (p) => p.name.toLowerCase() === String(name).toLowerCase().trim()
+      (p) => p.name.toLowerCase().trim() === String(name).toLowerCase().trim()
     );
     if (!patient) {
-      res.status(401).json({ error: "No patient account found with this name. Please check spelling or register first." });
+      res.status(404).json({ error: `No patient account found for name "${name}". Please register first.` });
       return;
     }
   } else {
-    // Phone + Password mode (default)
     if (!phone) {
-      res.status(400).json({ error: "phone or name required" });
+      res.status(400).json({ error: "phone required" });
       return;
     }
     const phoneClean = normalizePhone(phone);
     patient = [...patientsFolder.values()].find((p) => p.phone === phoneClean);
     if (!patient) {
-      res.status(401).json({ error: "No patient account found for this phone number. Please register first." });
+      res.status(404).json({
+        error: `No patient account found for phone ${phone}. Please register first.`,
+      });
       return;
     }
   }
 
   if (patient.password !== String(password)) {
-    res.status(401).json({ error: "Incorrect password." });
+    res.status(401).json({ error: "Incorrect password. Please try again." });
+    return;
+  }
+
+  const { password: _, ...safe } = patient;
+  res.json({ success: true, user: safe });
+});
+
+// GET /api/auth/patient/:patientId — internal lookup
+router.get("/patient/:patientId", (req, res) => {
+  const patient = patientsFolder.get(req.params.patientId);
+  if (!patient) {
+    res.status(404).json({ error: "Patient not found" });
     return;
   }
   const { password: _, ...safe } = patient;
-  res.json({ success: true, user: safe });
+  res.json(safe);
 });
 
 // POST /api/auth/staff/register
@@ -121,22 +137,23 @@ router.post("/staff/register", (req, res) => {
     res.status(400).json({ error: "name, staffId, password required" });
     return;
   }
-  const idClean = String(staffId).trim().toUpperCase();
-  if (staffUsers.has(idClean)) {
-    res.status(409).json({ error: "Staff ID already registered. Please choose a different ID or log in." });
+  const idUpper = String(staffId).trim().toUpperCase();
+  const existing = staffUsers.get(idUpper);
+  if (existing) {
+    res.status(409).json({ error: "Staff ID already registered." });
     return;
   }
-  const staff: StaffUser = {
-    userId: idClean,
-    staffId: idClean,
+  const user: StaffUser = {
+    userId: `USR-${Date.now()}`,
+    staffId: idUpper,
     name: String(name).trim(),
     password: String(password),
-    role: role ? String(role).trim() : "Staff",
+    role: String(role || "Staff"),
     createdAt: new Date().toISOString(),
   };
-  staffUsers.set(idClean, staff);
-  const { password: _, ...safe } = staff;
-  res.status(201).json({ success: true, userId: idClean, name: staff.name, user: safe });
+  staffUsers.set(idUpper, user);
+  const { password: _, ...safe } = user;
+  res.status(201).json({ success: true, user: safe });
 });
 
 // POST /api/auth/staff/login
@@ -146,24 +163,18 @@ router.post("/staff/login", (req, res) => {
     res.status(400).json({ error: "staffId and password required" });
     return;
   }
-  const idClean = String(staffId).trim().toUpperCase();
-  const staff = staffUsers.get(idClean);
-  if (!staff) {
-    res.status(401).json({ error: "No staff account found for this Staff ID." });
+  const idUpper = String(staffId).trim().toUpperCase();
+  const user = staffUsers.get(idUpper);
+  if (!user) {
+    res.status(404).json({ error: "Staff ID not registered. Please create an account." });
     return;
   }
-  if (staff.password !== String(password)) {
+  if (user.password !== String(password)) {
     res.status(401).json({ error: "Incorrect password." });
     return;
   }
-  const { password: _, ...safe } = staff;
+  const { password: _, ...safe } = user;
   res.json({ success: true, user: safe });
-});
-
-// GET /api/auth/staff-directory
-router.get("/staff-directory", (_req, res) => {
-  const all = [...staffUsers.values()].map(({ password: _, ...safe }) => safe);
-  res.json(all);
 });
 
 export default router;

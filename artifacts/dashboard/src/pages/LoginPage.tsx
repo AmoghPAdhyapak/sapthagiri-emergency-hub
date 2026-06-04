@@ -15,19 +15,18 @@ export default function LoginPage() {
   const [tab, setTab] = useState<PortalTab>("patient");
   const [patLoginMode, setPatLoginMode] = useState<PatientLoginMode>("PHONE_OTP");
 
-  // Patient login — shared
   const [patIdentifier, setPatIdentifier] = useState("");
   const [patPassword, setPatPassword] = useState("");
+  const [showPatPass, setShowPatPass] = useState(false);
   const [patError, setPatError] = useState("");
   const [patLoading, setPatLoading] = useState(false);
 
-  // Staff login
   const [staffId, setStaffId] = useState("");
   const [staffPassword, setStaffPassword] = useState("");
+  const [showStaffPass, setShowStaffPass] = useState(false);
   const [staffError, setStaffError] = useState("");
   const [staffLoading, setStaffLoading] = useState(false);
 
-  /** Normalize to 10-digit local number (strips +91 / 91 / 0 prefix) */
   const normPhone = (p: string) => {
     const d = p.replace(/\D/g, "");
     if (d.length === 12 && d.startsWith("91")) return d.slice(2);
@@ -35,7 +34,6 @@ export default function LoginPage() {
     return d;
   };
 
-  /** True when cached localStorage profile matches what the user typed */
   const cachedProfileMatches = (cached: { phone?: string; name?: string }) => {
     if (patLoginMode === "PHONE_OTP")
       return normPhone(cached.phone ?? "") === normPhone(patIdentifier);
@@ -68,8 +66,6 @@ export default function LoginPage() {
       };
 
       if (!res.ok) {
-        // ── Self-healing: server lost in-memory data after a restart ──
-        // Only trigger when backend says "not found" (NOT wrong password).
         if (data.error?.includes("No patient account found")) {
           try {
             const stored = localStorage.getItem("sapthagiri_user");
@@ -79,7 +75,6 @@ export default function LoginPage() {
                 email?: string; patientId?: string; role?: string;
               };
               if (cached.role === "patient" && cachedProfileMatches(cached)) {
-                // Re-register with the backend using cached profile + entered password
                 const regRes = await fetch("/api/auth/patient/register", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -105,7 +100,7 @@ export default function LoginPage() {
                 }
               }
             }
-          } catch { /* ignore self-heal errors, fall through to normal error */ }
+          } catch { /* fall through */ }
         }
         setPatError(data.error ?? "Login failed.");
         return;
@@ -115,7 +110,6 @@ export default function LoginPage() {
       localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
       setLocation("/patient");
     } catch {
-      // Fallback: check localStorage if backend is completely down
       try {
         const stored = localStorage.getItem("sapthagiri_user");
         if (stored) {
@@ -182,7 +176,6 @@ export default function LoginPage() {
           <p className="text-xs text-muted-foreground uppercase tracking-widest mt-1">Institute of Medical Sciences &amp; Research Center</p>
         </div>
 
-        {/* Portal tabs */}
         <div className="flex rounded-xl bg-muted/40 p-1 mb-6 border border-border/50">
           <button
             onClick={() => setTab("patient")}
@@ -217,7 +210,6 @@ export default function LoginPage() {
               <CardDescription>Sign in to view your health records and visit status.</CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Login mode selector */}
               <div className="flex rounded-lg bg-muted/40 p-0.5 mb-4 border border-border/40">
                 <button
                   onClick={() => switchPatLoginMode("PHONE_OTP")}
@@ -258,9 +250,6 @@ export default function LoginPage() {
                       data-testid="input-phone"
                       autoComplete="tel"
                     />
-                    <p className="text-[10px] text-muted-foreground/60">
-                      Enter the phone number you registered with.
-                    </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -278,25 +267,34 @@ export default function LoginPage() {
                       data-testid="input-name"
                       autoComplete="name"
                     />
-                    <p className="text-[10px] text-muted-foreground/60">
-                      For patients in rural areas without phone access.
-                    </p>
+                    <p className="text-[10px] text-muted-foreground/60">For patients in rural areas without phone access.</p>
                   </div>
                 )}
 
                 <div className="space-y-2">
                   <Label htmlFor="pat-password">Password</Label>
-                  <Input
-                    id="pat-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={patPassword}
-                    onChange={(e) => setPatPassword(e.target.value)}
-                    className="bg-background/50"
-                    data-testid="input-password"
-                    autoComplete="current-password"
-                  />
+                  <div className="relative flex items-center bg-background/50 border border-input rounded-md focus-within:ring-1 focus-within:ring-ring">
+                    <input
+                      id="pat-password"
+                      type={showPatPass ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={patPassword}
+                      onChange={(e) => setPatPassword(e.target.value)}
+                      className="flex-1 bg-transparent px-3 py-2 text-sm outline-none font-mono"
+                      data-testid="input-password"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPatPass(!showPatPass)}
+                      className="px-3 text-[10px] font-mono font-bold text-muted-foreground hover:text-primary transition-colors select-none shrink-0"
+                      tabIndex={-1}
+                    >
+                      {showPatPass ? "HIDE" : "SHOW"}
+                    </button>
+                  </div>
                 </div>
+
                 {patError && (
                   <p className="text-sm text-destructive font-medium p-2 bg-destructive/10 border border-destructive/20 rounded-md">
                     {patError}
@@ -310,9 +308,7 @@ export default function LoginPage() {
             <CardFooter className="flex justify-center border-t border-border/50 pt-6 pb-6">
               <p className="text-sm text-muted-foreground">
                 New patient?{" "}
-                <Link href="/signup" className="text-blue-400 hover:underline font-medium">
-                  Register here
-                </Link>
+                <Link href="/signup" className="text-blue-400 hover:underline font-medium">Register here</Link>
               </p>
             </CardFooter>
           </Card>
@@ -347,16 +343,26 @@ export default function LoginPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="staff-password">Password</Label>
-                  <Input
-                    id="staff-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={staffPassword}
-                    onChange={(e) => setStaffPassword(e.target.value)}
-                    className="bg-background/50"
-                    data-testid="input-password"
-                    autoComplete="current-password"
-                  />
+                  <div className="relative flex items-center bg-background/50 border border-input rounded-md focus-within:ring-1 focus-within:ring-ring">
+                    <input
+                      id="staff-password"
+                      type={showStaffPass ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={staffPassword}
+                      onChange={(e) => setStaffPassword(e.target.value)}
+                      className="flex-1 bg-transparent px-3 py-2 text-sm outline-none font-mono"
+                      data-testid="input-password"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowStaffPass(!showStaffPass)}
+                      className="px-3 text-[10px] font-mono font-bold text-muted-foreground hover:text-primary transition-colors select-none shrink-0"
+                      tabIndex={-1}
+                    >
+                      {showStaffPass ? "HIDE" : "SHOW"}
+                    </button>
+                  </div>
                 </div>
                 {staffError && (
                   <p className="text-sm text-destructive font-medium p-2 bg-destructive/10 border border-destructive/20 rounded-md">

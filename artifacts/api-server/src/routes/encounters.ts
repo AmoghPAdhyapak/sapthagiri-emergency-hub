@@ -27,8 +27,10 @@ export interface EncounterRecord {
   patientId: string;
   patientName: string;
   symptoms: string;
+  symptomFinalVerdict: string;
   visitReason: string;
   triageLevel: "RED" | "YELLOW" | "GREEN";
+  allergies: string[];
   assignedDoctor: string;
   doctorId: string;
   timestamp: string;
@@ -37,9 +39,13 @@ export interface EncounterRecord {
   completionStatus?: string;
   isArchived?: boolean;
   terminationTimestamp?: string;
+  deceasedAt?: string;
 }
 
 export const encounters = new Map<string, EncounterRecord>();
+
+// Dean Registry — licensed external doctor IDs allowed to submit continuity notes
+export const DEAN_REGISTRY = ["75657", "88241", "99432", "AUTO-DISPATCH-ROUTER"];
 
 const RED_KEYWORDS = [
   "chest pain", "cardiac", "breathing failure", "not breathing",
@@ -61,11 +67,17 @@ function autoTriage(symptoms: string, doctorSelection: string): "RED" | "YELLOW"
   return "GREEN";
 }
 
+function verdictLabel(level: "RED" | "YELLOW" | "GREEN"): string {
+  if (level === "RED") return "RED — Critical Emergency";
+  if (level === "YELLOW") return "YELLOW — Urgent Care Required";
+  return "GREEN — Stable / Routine Monitoring";
+}
+
 const router = Router();
 
 // POST /api/triage/process
 router.post("/process", (req, res) => {
-  const { patientId, symptoms, visitReason, juniorDoctorSelection, doctorId } = req.body || {};
+  const { patientId, symptoms, visitReason, juniorDoctorSelection, doctorId, allergies } = req.body || {};
   if (!patientId || !symptoms) {
     res.status(400).json({ error: "patientId and symptoms required" });
     return;
@@ -76,13 +88,21 @@ router.post("/process", (req, res) => {
   let encounterId = `ENC-${Math.floor(1000 + Math.random() * 9000)}`;
   while (encounters.has(encounterId)) encounterId = `ENC-${Math.floor(1000 + Math.random() * 9000)}`;
 
+  const allergyList: string[] = Array.isArray(allergies)
+    ? (allergies as string[]).map(String).filter(Boolean)
+    : typeof allergies === "string" && allergies.trim()
+      ? allergies.split(",").map((a: string) => a.trim()).filter(Boolean)
+      : patient?.allergies ?? [];
+
   const record: EncounterRecord = {
     encounterId,
     patientId,
     patientName: patient?.name || "Unknown Patient",
     symptoms: String(symptoms),
+    symptomFinalVerdict: verdictLabel(finalTriageLevel),
     visitReason: String(visitReason || ""),
     triageLevel: finalTriageLevel,
+    allergies: allergyList,
     assignedDoctor: String(doctorId || "Unassigned"),
     doctorId: String(doctorId || ""),
     timestamp: new Date().toISOString(),
@@ -119,6 +139,14 @@ router.get("/encounters", (_req, res) => {
   res.json(all);
 });
 
+// GET /api/triage/deceased — frozen write-protected archive of deceased records
+router.get("/deceased", (_req, res) => {
+  const deceased = [...encounters.values()]
+    .filter((e) => e.isArchived && e.deceasedAt)
+    .sort((a, b) => new Date(b.deceasedAt!).getTime() - new Date(a.deceasedAt!).getTime());
+  res.json(deceased);
+});
+
 // GET /api/triage/encounters/:id
 router.get("/encounters/:id", (req, res) => {
   const enc = encounters.get(req.params.id);
@@ -127,12 +155,19 @@ router.get("/encounters/:id", (req, res) => {
 });
 
 // POST /api/triage/encounters/:id/continuity
+// Requires Dean Registry validation for external doctor IDs
 router.post("/encounters/:id/continuity", (req, res) => {
   const enc = encounters.get(req.params.id);
   if (!enc) { res.status(404).json({ error: "Encounter not found" }); return; }
   const { doctorName, doctorId, hospital, medRegId, doctorPhone, notes } = req.body || {};
   if (!doctorName || !notes) {
     res.status(400).json({ error: "doctorName and notes required" });
+    return;
+  }
+  if (doctorId && !DEAN_REGISTRY.includes(String(doctorId).trim())) {
+    res.status(403).json({
+      error: `Doctor ID "${doctorId}" is not listed in the Dean Registry. Only registered external practitioners may submit continuity notes. Authorized IDs: 75657, 88241, 99432.`,
+    });
     return;
   }
   const entry: ContinuityEntry = {
@@ -144,7 +179,7 @@ router.post("/encounters/:id/continuity", (req, res) => {
     doctorPhone: String(doctorPhone || ""),
     notes: String(notes),
     timestamp: new Date().toISOString(),
-    verificationStatus: "Unverified",
+    verificationStatus: DEAN_REGISTRY.includes(String(doctorId || "").trim()) ? "Dean-Verified" : "Unverified",
   };
   enc.crossHospitalContinuityLogs.push(entry);
   res.status(201).json({ success: true, entry });
@@ -169,13 +204,43 @@ router.patch("/emergency-hub/action", (req, res) => {
     return;
   }
 
+  const ts = new Date().toISOString();
+
   if (statusAction === "OUT_OF_DANGER") {
     activeEncounter.triageLevel = "GREEN";
+    activeEncounter.symptomFinalVerdict = verdictLabel("GREEN");
+    activeEncounter.statusHistory.push({
+      eventId: `EVT-${Date.now()}`,
+      action: "OUT_OF_DANGER",
+      previousLevel: "RED",
+      newLevel: "GREEN",
+      doctorId: String(doctorId),
+      timestamp: ts,
+    });
   } else if (statusAction === "UNDER_OBSERVATION") {
     activeEncounter.triageLevel = "YELLOW";
+    activeEncounter.symptomFinalVerdict = verdictLabel("YELLOW");
+    activeEncounter.statusHistory.push({
+      eventId: `EVT-${Date.now()}`,
+      action: "UNDER_OBSERVATION",
+      previousLevel: "RED",
+      newLevel: "YELLOW",
+      doctorId: String(doctorId),
+      timestamp: ts,
+    });
   } else if (statusAction === "DECEASED") {
     activeEncounter.isArchived = true;
-    activeEncounter.terminationTimestamp = new Date().toISOString();
+    activeEncounter.terminationTimestamp = ts;
+    activeEncounter.deceasedAt = ts;
+    activeEncounter.completionStatus = "DECEASED";
+    activeEncounter.statusHistory.push({
+      eventId: `EVT-${Date.now()}`,
+      action: "DECEASED — Record Permanently Archived",
+      previousLevel: "RED",
+      newLevel: "DECEASED",
+      doctorId: String(doctorId),
+      timestamp: ts,
+    });
   } else {
     res.status(400).json({ success: false, error: "Invalid statusAction. Must be OUT_OF_DANGER, UNDER_OBSERVATION, or DECEASED." });
     return;
@@ -233,6 +298,7 @@ router.patch("/queue/action", (req, res) => {
       return;
     }
     enc.triageLevel = nextLevel as "RED" | "YELLOW" | "GREEN";
+    enc.symptomFinalVerdict = verdictLabel(enc.triageLevel);
     enc.statusHistory.push({
       eventId: `EVT-${Date.now()}`,
       action: `ESCALATE_${previousLevel}_TO_${nextLevel}`,
@@ -251,8 +317,21 @@ router.patch("/queue/action", (req, res) => {
       doctorId: String(doctorId),
       timestamp: ts,
     });
+  } else if (action === "DECEASED") {
+    enc.isArchived = true;
+    enc.completionStatus = "DECEASED";
+    enc.terminationTimestamp = ts;
+    enc.deceasedAt = ts;
+    enc.statusHistory.push({
+      eventId: `EVT-${Date.now()}`,
+      action: "DECEASED — Record Permanently Archived",
+      previousLevel,
+      newLevel: "DECEASED",
+      doctorId: String(doctorId),
+      timestamp: ts,
+    });
   } else {
-    res.status(400).json({ success: false, error: "Invalid action. Must be COMPLETED, ESCALATE, or UNDER_OBSERVATION." });
+    res.status(400).json({ success: false, error: "Invalid action. Must be COMPLETED, ESCALATE, UNDER_OBSERVATION, or DECEASED." });
     return;
   }
 

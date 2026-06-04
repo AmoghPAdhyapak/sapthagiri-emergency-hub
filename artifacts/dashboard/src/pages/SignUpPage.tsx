@@ -11,6 +11,7 @@ import {
   Mail,
   Loader2,
   Calendar,
+  AlertTriangle,
 } from "lucide-react";
 import logoUrl from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,8 @@ export default function SignUpPage() {
   const [email, setEmail] = useState("");
   const [age, setAge] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [allergiesInput, setAllergiesInput] = useState("");
   const [profileError, setProfileError] = useState("");
   const [registering, setRegistering] = useState(false);
 
@@ -157,8 +160,11 @@ export default function SignUpPage() {
     setProfileError("");
     setRegistering(true);
 
+    const allergies = allergiesInput.trim()
+      ? allergiesInput.split(",").map((a) => a.trim()).filter(Boolean)
+      : [];
+
     try {
-      // Register with backend to get a persistent patientId
       const res = await fetch("/api/auth/patient/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -168,6 +174,7 @@ export default function SignUpPage() {
           age: age.trim(),
           email: email.trim(),
           password,
+          allergies,
         }),
       });
       const data = await res.json() as { error?: string; patientId?: string; name?: string };
@@ -181,6 +188,7 @@ export default function SignUpPage() {
           phone: phone.trim(),
           email: email.trim(),
           age: age.trim(),
+          allergies,
           patientId,
           role: "patient",
         })
@@ -188,7 +196,6 @@ export default function SignUpPage() {
       localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
       setLocation("/patient");
     } catch {
-      // Fallback: still register locally without backend
       const patientId = `Patient-${phone.replace(/\D/g, "").slice(-4)}`;
       localStorage.setItem(
         "sapthagiri_user",
@@ -197,6 +204,7 @@ export default function SignUpPage() {
           phone: phone.trim(),
           email: email.trim(),
           age: age.trim(),
+          allergies,
           patientId,
           role: "patient",
         })
@@ -435,16 +443,45 @@ export default function SignUpPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="password">Password *</Label>
+                  <div className="relative flex items-center bg-background/50 border border-input rounded-md focus-within:ring-1 focus-within:ring-ring">
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Choose a strong password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="flex-1 bg-transparent px-3 py-2 text-sm outline-none font-mono"
+                      data-testid="input-password"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="px-3 text-[10px] font-mono font-bold text-muted-foreground hover:text-primary transition-colors select-none shrink-0"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? "HIDE" : "SHOW"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="allergies" className="flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                    Known Allergies
+                    <span className="text-[10px] text-muted-foreground font-normal">(comma-separated)</span>
+                  </Label>
                   <Input
-                    id="password"
-                    type="password"
-                    placeholder="Choose a strong password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    id="allergies"
+                    placeholder="e.g. Penicillin, NSAIDs, Latex"
+                    value={allergiesInput}
+                    onChange={(e) => setAllergiesInput(e.target.value)}
                     className="bg-background/50"
-                    data-testid="input-password"
-                    autoComplete="new-password"
+                    data-testid="input-allergies"
                   />
+                  <p className="text-[10px] text-muted-foreground/60">
+                    This is shared with medical staff to prevent adverse drug reactions. Leave blank if none.
+                  </p>
                 </div>
 
                 {profileError && (

@@ -2,3 +2,7 @@
 - [RED triage override](red-triage-override.md) — backend enforces RED keywords regardless of doctor selection; RED encounters locked from deletion.
 - [Queue tri-separation](queue-tri-separation.md) — staff sidebar splits into Emergency Hub (RED), Observation Queue (YELLOW), General Monitoring (GREEN) as distinct nav items.
 - [Emergency hub lifecycle](emergency-hub-lifecycle.md) — PATCH /api/triage/emergency-hub/action with 3 outcomes: OUT_OF_DANGER→GREEN, UNDER_OBSERVATION→YELLOW, DECEASED→archived. Requires doctorId.
+- [Dean Registry](dean-registry.md) — DEAN_REGISTRY=["75657","88241","99432","AUTO-DISPATCH-ROUTER"] validates external doctor IDs in continuity POST only, not queue actions.
+- [Encounter cache pattern](encounter-cache.md) — panels write fresh server data to localStorage (key: HOSPITAL_DB_ENCOUNTERS_RED/YELLOW/GREEN); restore from cache when server returns empty (post-restart survival).
+- [Expandable drawer pattern](expandable-drawer.md) — all triage panels use click-to-toggle Set<string> expanded state; drawer shows symptoms, verdict, allergies, timeline, continuity logs, then action panel.
+- [Lucide icon limits](lucide-icon-limits.md) — Siren does NOT exist in 0.545.0; Skull/History/ChevronDown/ShieldAlert/AlertTriangle all confirmed present.
