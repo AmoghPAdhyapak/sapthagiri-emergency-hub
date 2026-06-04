@@ -1,0 +1,286 @@
+Follow this deployment patch STRICTLY.
+
+Do NOT skip any lifecycle synchronization logic.
+Do NOT simplify the architecture.
+Do NOT replace the provided SQL/database structures with placeholders.
+Do NOT redesign the UI theme, dashboard layout, sidebar system, or healthcare styling.
+
+Focus ONLY on:
+- persistent SQLite storage
+- forensic lifecycle synchronization
+- patient/staff unified state consistency
+- AI override routing
+- death/recovery audit trails
+- synchronized patient folder rendering
+- stable reboot-safe persistence
+
+IMPORTANT:
+The provided JavaScript/React/SQLite structures below are intentional and must remain structurally intact while integrating into the current codebase.
+
+==============================================================================
+PRIMARY OBJECTIVE
+==============================================================================
+
+Fix the major persistence issue where:
+- patient data disappears after browser close
+- patient data disappears after device shutdown
+- staff accounts disappear after restart
+- patient folder state becomes desynchronized
+- yellow/red/green queues retain data but patient folder loses data
+
+Migrate the current temporary runtime memory architecture into a persistent SQLite-backed ecosystem.
+
+==============================================================================
+CORE SYSTEM REQUIREMENTS
+==============================================================================
+
+1. Replace volatile runtime storage with SQLite3 persistent storage.
+2. Create unified SQL-backed patient lifecycle synchronization.
+3. Maintain exact same UI styling and component hierarchy.
+4. Ensure BOTH Staff Portal and Patient Portal query the SAME database rows.
+5. Ensure all queues and patient folders reflect identical real-time data.
+6. Ensure forensic history survives server restarts and browser closure.
+7. Ensure death reports permanently persist.
+8. Ensure AI Override events permanently persist.
+9. Ensure allergy data permanently persists.
+10. Ensure symptomFinalVerdict persists across all portals.
+
+==============================================================================
+LOCAL SQLITE3 DATABASE ENGINE
+==============================================================================
+
+Replace all temporary global memory maps/local arrays handling patient lifecycle persistence with SQLite3 physical storage.
+
+Use:
+```javascript
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('./hospital_ecosystem.db');
+
+Create persistent tables:
+
+STAFF_ACCOUNTS
+PATIENT_MASTER_FOLDER
+ENCOUNTERS
+FORENSIC_LIFECYCLE_LOGS
+AI_OVERRIDE_HISTORY
+
+Ensure:
+
+staff login persists after restart
+patient registration persists after restart
+patient folder survives shutdown
+forensic logs survive shutdown
+queue synchronization survives refresh/reboot
+==============================================================================
+CRITICAL DATABASE STRUCTURES
+
+PATIENT_MASTER_FOLDER must store:
+
+patientId
+name
+age
+allergies
+phone
+survivalState
+symptomFinalVerdict
+createdAt
+
+ENCOUNTERS must store:
+
+encounterId
+patientId
+symptoms
+verdict
+assignedDoctor
+status
+
+FORENSIC_LIFECYCLE_LOGS must store:
+
+doctor chains
+AI override history
+recovery logs
+escalation logs
+downgrade logs
+death reports
+cross-hospital continuity data
+==============================================================================
+AI OVERRIDE ENFORCEMENT
+
+Keep and preserve the ARCH AI scanner logic exactly.
+
+Critical phrases:
+
+heart attack
+cardiac arrest
+breathing collapse
+internal bleeding
+unconscious
+stroke
+
+If detected:
+
+force RED verdict
+show override banner for 7 seconds
+permanently append AI override forensic log
+automatically move patient into RED Emergency Hub
+block incorrect downgrade attempts
+
+This override must work for:
+
+new triage
+upgrades
+downgrades
+under observation
+clinical note updates
+==============================================================================
+FORENSIC DEATH SYSTEM
+
+When patient status becomes DECEASED:
+
+Render clearly in BOTH:
+
+Patient Portal
+Staff Portal -> Patient Folder -> Patient File
+
+Display:
+[⚠️ CRITICAL ALARM: PATIENT DECEASED]
+
+Render complete forensic death panel:
+
+exact cause of death
+pre-death symptoms
+emergency intervention attempts
+attending doctors
+final clinical notes
+AI override history
+chronological escalation timeline
+
+This data must permanently persist in SQLite.
+
+==============================================================================
+PATIENT/STAFF SYNCHRONIZATION
+
+Force:
+
+Emergency Hub
+Observation Queue
+General Monitoring
+Patient Folder
+Patient Portal
+
+to query the SAME SQL-backed source of truth.
+
+No duplicate runtime copies.
+No temporary frontend-only state mirrors.
+
+Use unified API endpoints.
+
+==============================================================================
+MANDATORY TECHNICAL IMPLEMENTATION
+
+Integrate these exact structures carefully into the existing architecture.
+
+Do NOT replace them with simplified logic.
+
+SERVER DATABASE INITIALIZATION:
+
+const express = require('express');
+const sqlite3 = require('sqlite3').verbose();
+const app = express();
+app.use(express.json());
+
+const db = new sqlite3.Database('./hospital_ecosystem.db', (err) => {
+  if (err) console.error('FAIL: SQLite disk binding initialization error:', err.message);
+  else console.log('SUCCESS: Persistent SQL database successfully locked to file system storage.');
+});
+
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS STAFF_ACCOUNTS (
+    doctorId TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    passwordHash TEXT NOT NULL,
+    createdAt TEXT NOT NULL
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS PATIENT_MASTER_FOLDER (
+    patientId TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    age INTEGER NOT NULL,
+    allergies TEXT,
+    phone TEXT NOT NULL,
+    survivalState TEXT DEFAULT 'Stable',
+    createdAt TEXT NOT NULL
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS ENCOUNTERS (
+    encounterId TEXT PRIMARY KEY,
+    patientId TEXT NOT NULL,
+    symptoms TEXT,
+    verdict TEXT NOT NULL,
+    assignedDoctor TEXT,
+    status TEXT NOT NULL
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS FORENSIC_LIFECYCLE_LOGS (
+    logId TEXT PRIMARY KEY,
+    patientId TEXT NOT NULL,
+    eventType TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    forensicPayload TEXT
+  )`);
+});
+==============================================================================
+UNIFIED SYNC API
+
+Use unified SQL synchronization route:
+
+app.get('/api/patients/sync-master/:patientId', (req, res) => {
+  const { patientId } = req.params;
+  
+  db.get(`SELECT * FROM PATIENT_MASTER_FOLDER WHERE patientId = ?`, [patientId], (err, profile) => {
+    if (!profile) return res.status(404).json({ success: false, error: "Patient record completely missing from persistent storage rows." });
+    
+    db.all(`SELECT * FROM FORENSIC_LIFECYCLE_LOGS WHERE patientId = ? ORDER BY timestamp ASC`, [patientId], (err, logs) => {
+      const formattedLogs = logs.map(l => ({ ...l, forensicPayload: JSON.parse(l.forensicPayload) }));
+      res.status(200).json({ success: true, profile: { ...profile, allergies: JSON.parse(profile.allergies || '[]') }, forensicTimeline: formattedLogs });
+    });
+  });
+});
+==============================================================================
+FORENSIC FILE VIEWER
+
+Render complete forensic lifecycle timeline inside:
+Staff Portal -> Patients Folder -> Patient File
+
+Must include:
+
+doctor chain
+AI override events
+death reports
+escalation paths
+downgrade history
+stabilization timeline
+final verdict state
+survival state chips
+AI intervention badge
+==============================================================================
+FINAL REQUIREMENTS
+
+Do NOT:
+
+redesign UI
+break existing navigation
+remove healthcare styling
+remove existing queues
+replace current frontend architecture
+
+ONLY:
+
+upgrade persistence layer
+unify synchronization
+strengthen forensic lifecycle system
+stabilize reboot-safe SQL persistence
+maintain exact dashboard continuity
+
+Deploy carefully without breaking the existing ecosystem.

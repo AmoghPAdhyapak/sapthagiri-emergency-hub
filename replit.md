@@ -37,7 +37,7 @@ Full-stack AI-assisted hospital emergency triage system. Dual portal: **Patient 
 
 ## Architecture decisions
 
-- **In-memory triage store**: encounters are stored in a `Map<string, EncounterRecord>` in the API server process. Server restarts wipe encounters; mitigated by localStorage cache per zone (RED/YELLOW/GREEN). Patient accounts persist the same way and are self-healed via local storage on login.
+- **SQLite persistent store**: all triage encounters, patient accounts, staff accounts, and forensic logs are stored in `artifacts/api-server/hospital_ecosystem.db` (better-sqlite3, WAL mode). Data survives server restarts and device shutdowns. Helper layer is `src/lib/sqliteDb.ts`. The `onlyBuiltDependencies` entry in `pnpm-workspace.yaml` must include `better-sqlite3` for the native addon to compile.
 - **DEAN_REGISTRY validation**: only applied to cross-hospital continuity submissions (`POST /api/triage/encounters/:id/continuity`). Authorized IDs: 75657, 88241, 99432, AUTO-DISPATCH-ROUTER.
 - **Triage auto-classification**: RED keywords trigger RED regardless of doctor selection; server computes `symptomFinalVerdict` string alongside `triageLevel`.
 - **Expandable drawer**: all three triage panels use a `Set<string>` click-to-toggle pattern; the drawer renders full clinical file + action panel inline.

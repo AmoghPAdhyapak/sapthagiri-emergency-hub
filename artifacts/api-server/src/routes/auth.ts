@@ -1,4 +1,13 @@
 import { Router } from "express";
+import {
+  insertPatient,
+  getPatientById,
+  getPatientByPhone,
+  getPatientByName,
+  insertStaff,
+  getStaffById,
+  type PatientRow,
+} from "../lib/sqliteDb";
 
 export interface PatientUser {
   patientId: string;
@@ -21,11 +30,14 @@ export interface StaffUser {
   createdAt: string;
 }
 
-export const patientsFolder = new Map<string, PatientUser>();
-export const staffUsers = new Map<string, StaffUser>();
-
 function generatePatientId(): string {
   return `Patient-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+function generateUniquePatientId(): string {
+  let id = generatePatientId();
+  while (getPatientById(id)) id = generatePatientId();
+  return id;
 }
 
 /** Normalize phone to 10-digit local number, stripping country code prefixes */
@@ -42,6 +54,20 @@ function parseAllergies(raw: unknown): string[] {
   return [];
 }
 
+function rowToPatientUser(row: PatientRow): PatientUser {
+  return {
+    patientId: row.patientId,
+    name: row.name,
+    phone: row.phone,
+    age: row.age,
+    email: row.email,
+    password: row.password,
+    allergies: row.allergies,
+    role: "patient",
+    createdAt: row.createdAt,
+  };
+}
+
 const router = Router();
 
 // POST /api/auth/patient/register
@@ -52,15 +78,15 @@ router.post("/patient/register", (req, res) => {
     return;
   }
   const phoneClean = normalizePhone(phone);
-  const existing = [...patientsFolder.values()].find((p) => p.phone === phoneClean);
+  const existing = getPatientByPhone(phoneClean);
   if (existing) {
-    const { password: _, ...safe } = existing;
+    const user = rowToPatientUser(existing);
+    const { password: _, ...safe } = user;
     res.json({ success: true, patientId: existing.patientId, name: existing.name, user: safe });
     return;
   }
-  let patientId = generatePatientId();
-  while (patientsFolder.has(patientId)) patientId = generatePatientId();
-  const patient: PatientUser = {
+  const patientId = generateUniquePatientId();
+  const patient: PatientRow = {
     patientId,
     name: String(name).trim(),
     phone: phoneClean,
@@ -68,11 +94,12 @@ router.post("/patient/register", (req, res) => {
     email: String(email || ""),
     password: String(password),
     allergies: parseAllergies(allergies),
-    role: "patient",
+    survivalState: "Stable",
     createdAt: new Date().toISOString(),
   };
-  patientsFolder.set(patientId, patient);
-  const { password: _, ...safe } = patient;
+  insertPatient(patient);
+  const user = rowToPatientUser(patient);
+  const { password: _, ...safe } = user;
   res.status(201).json({ success: true, patientId, name: patient.name, user: safe });
 });
 
@@ -85,13 +112,11 @@ router.post("/patient/login", (req, res) => {
     return;
   }
 
-  let patient: PatientUser | undefined;
+  let row: PatientRow | undefined;
 
   if (loginType === "NAME_PASSWORD" && name) {
-    patient = [...patientsFolder.values()].find(
-      (p) => p.name.toLowerCase().trim() === String(name).toLowerCase().trim()
-    );
-    if (!patient) {
+    row = getPatientByName(String(name).trim());
+    if (!row) {
       res.status(404).json({ error: `No patient account found for name "${name}". Please register first.` });
       return;
     }
@@ -101,8 +126,8 @@ router.post("/patient/login", (req, res) => {
       return;
     }
     const phoneClean = normalizePhone(phone);
-    patient = [...patientsFolder.values()].find((p) => p.phone === phoneClean);
-    if (!patient) {
+    row = getPatientByPhone(phoneClean);
+    if (!row) {
       res.status(404).json({
         error: `No patient account found for phone ${phone}. Please register first.`,
       });
@@ -110,23 +135,25 @@ router.post("/patient/login", (req, res) => {
     }
   }
 
-  if (patient.password !== String(password)) {
+  if (row.password !== String(password)) {
     res.status(401).json({ error: "Incorrect password. Please try again." });
     return;
   }
 
-  const { password: _, ...safe } = patient;
+  const user = rowToPatientUser(row);
+  const { password: _, ...safe } = user;
   res.json({ success: true, user: safe });
 });
 
 // GET /api/auth/patient/:patientId — internal lookup
 router.get("/patient/:patientId", (req, res) => {
-  const patient = patientsFolder.get(req.params.patientId);
-  if (!patient) {
+  const row = getPatientById(req.params.patientId);
+  if (!row) {
     res.status(404).json({ error: "Patient not found" });
     return;
   }
-  const { password: _, ...safe } = patient;
+  const user = rowToPatientUser(row);
+  const { password: _, ...safe } = user;
   res.json(safe);
 });
 
@@ -138,20 +165,19 @@ router.post("/staff/register", (req, res) => {
     return;
   }
   const idUpper = String(staffId).trim().toUpperCase();
-  const existing = staffUsers.get(idUpper);
-  if (existing) {
+  if (getStaffById(idUpper)) {
     res.status(409).json({ error: "Staff ID already registered." });
     return;
   }
-  const user: StaffUser = {
-    userId: `USR-${Date.now()}`,
+  const user = {
     staffId: idUpper,
+    userId: `USR-${Date.now()}`,
     name: String(name).trim(),
     password: String(password),
     role: String(role || "Staff"),
     createdAt: new Date().toISOString(),
   };
-  staffUsers.set(idUpper, user);
+  insertStaff(user);
   const { password: _, ...safe } = user;
   res.status(201).json({ success: true, user: safe });
 });
@@ -164,7 +190,7 @@ router.post("/staff/login", (req, res) => {
     return;
   }
   const idUpper = String(staffId).trim().toUpperCase();
-  const user = staffUsers.get(idUpper);
+  const user = getStaffById(idUpper);
   if (!user) {
     res.status(404).json({ error: "Staff ID not registered. Please create an account." });
     return;

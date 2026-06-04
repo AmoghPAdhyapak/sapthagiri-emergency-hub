@@ -1,5 +1,13 @@
 import { Router } from "express";
-import { patientsFolder } from "./auth";
+import {
+  upsertEncounter,
+  getEncounterById,
+  getAllEncounters,
+  getEncountersByPatient,
+  encounterIdExists,
+  getPatientById,
+  getForensicLogsByPatient,
+} from "../lib/sqliteDb";
 
 export interface ContinuityEntry {
   id: string;
@@ -53,8 +61,6 @@ export interface EncounterRecord {
   deceasedAt?: string;
 }
 
-export const encounters = new Map<string, EncounterRecord>();
-
 // Dean Registry — licensed external doctor IDs allowed to submit continuity notes
 export const DEAN_REGISTRY = ["75657", "88241", "99432", "AUTO-DISPATCH-ROUTER"];
 
@@ -107,6 +113,16 @@ function mkForensicId(): string {
   return `FOR-LN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
+function generateEncounterId(): string {
+  return `ENC-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+function generateUniqueEncounterId(): string {
+  let id = generateEncounterId();
+  while (encounterIdExists(id)) id = generateEncounterId();
+  return id;
+}
+
 const router = Router();
 
 // POST /api/triage/process
@@ -117,10 +133,9 @@ router.post("/process", (req, res) => {
     return;
   }
   const finalTriageLevel = autoTriage(symptoms, juniorDoctorSelection || "GREEN");
-  const patient = patientsFolder.get(patientId);
+  const patient = getPatientById(patientId);
 
-  let encounterId = `ENC-${Math.floor(1000 + Math.random() * 9000)}`;
-  while (encounters.has(encounterId)) encounterId = `ENC-${Math.floor(1000 + Math.random() * 9000)}`;
+  const encounterId = generateUniqueEncounterId();
 
   const allergyList: string[] = Array.isArray(allergies)
     ? (allergies as string[]).map(String).filter(Boolean)
@@ -184,14 +199,14 @@ router.post("/process", (req, res) => {
     isArchived: false,
   };
 
-  encounters.set(encounterId, record);
+  upsertEncounter(record);
   req.log.info(`[TRIAGE] ENC ${encounterId} → ${finalTriageLevel} | Patient ${patientId} | Doctor ${doctorId} | AIOverride:${record.aiOverrideTriggered}`);
   res.status(201).json({ success: true, encounter: record, aiOverrideActive: record.aiOverrideTriggered, bannerReason });
 });
 
 // GET /api/triage/encounters
 router.get("/encounters", (_req, res) => {
-  const all = [...encounters.values()]
+  const all = getAllEncounters<EncounterRecord>()
     .filter((e) => !e.isArchived)
     .sort((a, b) => {
       if (a.triageLevel === "RED" && b.triageLevel !== "RED") return -1;
@@ -205,7 +220,7 @@ router.get("/encounters", (_req, res) => {
 
 // GET /api/triage/deceased — frozen write-protected archive of deceased records
 router.get("/deceased", (_req, res) => {
-  const deceased = [...encounters.values()]
+  const deceased = getAllEncounters<EncounterRecord>()
     .filter((e) => e.isArchived && e.deceasedAt)
     .sort((a, b) => new Date(b.deceasedAt!).getTime() - new Date(a.deceasedAt!).getTime());
   res.json(deceased);
@@ -213,15 +228,28 @@ router.get("/deceased", (_req, res) => {
 
 // GET /api/triage/encounters/:id
 router.get("/encounters/:id", (req, res) => {
-  const enc = encounters.get(req.params.id);
+  const enc = getEncounterById<EncounterRecord>(req.params.id);
   if (!enc) { res.status(404).json({ error: "Encounter not found" }); return; }
   res.json(enc);
+});
+
+// GET /api/triage/sync-master/:patientId — unified persistent state for patient + forensic timeline
+router.get("/sync-master/:patientId", (req, res) => {
+  const { patientId } = req.params;
+  const profile = getPatientById(patientId);
+  if (!profile) {
+    res.status(404).json({ success: false, error: "Patient record completely missing from persistent storage rows." });
+    return;
+  }
+  const { password: _, ...safeProfile } = profile;
+  const forensicTimeline = getForensicLogsByPatient(patientId);
+  res.json({ success: true, profile: safeProfile, forensicTimeline });
 });
 
 // POST /api/triage/encounters/:id/continuity
 // Requires Dean Registry validation for external doctor IDs
 router.post("/encounters/:id/continuity", (req, res) => {
-  const enc = encounters.get(req.params.id);
+  const enc = getEncounterById<EncounterRecord>(req.params.id);
   if (!enc) { res.status(404).json({ error: "Encounter not found" }); return; }
   const { doctorName, doctorId, hospital, medRegId, doctorPhone, notes } = req.body || {};
   if (!doctorName || !notes) {
@@ -258,6 +286,7 @@ router.post("/encounters/:id/continuity", (req, res) => {
     treatmentSummary: String(notes),
     verificationStatus: entry.verificationStatus,
   });
+  upsertEncounter(enc);
   res.status(201).json({ success: true, entry });
 });
 
@@ -278,7 +307,7 @@ router.patch("/emergency-hub/action", (req, res) => {
     return;
   }
 
-  const activeEncounter = encounters.get(String(encounterId));
+  const activeEncounter = getEncounterById<EncounterRecord>(String(encounterId));
   if (!activeEncounter) {
     res.status(404).json({ success: false, error: "Emergency record reference not located." });
     return;
@@ -388,7 +417,7 @@ router.patch("/emergency-hub/action", (req, res) => {
     });
   }
 
-  encounters.set(encounterId, activeEncounter);
+  upsertEncounter(activeEncounter);
   req.log.info(`[EMERGENCY-HUB] ${encounterId} → ${statusAction} by Doctor ${doctorId} | AIOverride:${hubAiOverride}`);
   res.status(200).json({
     success: true,
@@ -416,7 +445,7 @@ router.patch("/queue/action", (req, res) => {
     return;
   }
 
-  const enc = encounters.get(String(encounterId));
+  const enc = getEncounterById<EncounterRecord>(String(encounterId));
   if (!enc) {
     res.status(404).json({ success: false, error: "Encounter not found." });
     return;
@@ -547,15 +576,14 @@ router.patch("/queue/action", (req, res) => {
     });
   }
 
-  encounters.set(encounterId, enc);
+  upsertEncounter(enc);
   req.log.info(`[QUEUE-ACTION] ${encounterId} → ${action} by Doctor ${doctorId} | AIOverride:${queueAiOverride}`);
   res.status(200).json({ success: true, encounter: enc, aiOverrideActive: queueAiOverride, bannerReason: queueBannerReason });
 });
 
 // GET /api/triage/patient/:patientId
 router.get("/patient/:patientId", (req, res) => {
-  const patientEncounters = [...encounters.values()]
-    .filter((e) => e.patientId === req.params.patientId)
+  const patientEncounters = getEncountersByPatient<EncounterRecord>(req.params.patientId)
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   res.json(patientEncounters);
 });
