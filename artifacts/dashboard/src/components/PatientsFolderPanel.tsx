@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ClinicalOverrideBanner, type OverrideSignal } from "./ClinicalOverrideBanner";
+import { ClinicalRealismChips } from "./ClinicalRealismChips";
 
 interface PatientRecord {
   patientId: string;
@@ -32,6 +34,13 @@ interface ContinuityEntry {
   timestamp: string;
 }
 
+interface ForensicLogEntry {
+  logId: string;
+  eventType: "DOCTOR_CHAIN" | "DEATH_REPORT" | "RECOVERY_TRAJECTORY" | "AI_OVERRIDE" | "CROSS_HOSPITAL";
+  timestamp: string;
+  [key: string]: unknown;
+}
+
 interface EncounterRecord {
   encounterId: string;
   patientId: string;
@@ -43,6 +52,9 @@ interface EncounterRecord {
   doctorId: string;
   timestamp: string;
   crossHospitalContinuityLogs: ContinuityEntry[];
+  forensicLifecycleTimeline?: ForensicLogEntry[];
+  aiOverrideTriggered?: boolean;
+  completionStatus?: string;
 }
 
 interface PatientDetail extends PatientRecord {
@@ -70,6 +82,7 @@ export function PatientsFolderPanel() {
   const [doctorId, setDoctorId] = useState("DOC001");
   const [triageLoading, setTriageLoading] = useState(false);
   const [triageMsg, setTriageMsg] = useState("");
+  const [overrideSignal, setOverrideSignal] = useState<OverrideSignal | null>(null);
 
   useEffect(() => {
     fetch("/api/patients-folder")
@@ -117,8 +130,11 @@ export function PatientsFolderPanel() {
           juniorDoctorSelection: "GREEN",
         }),
       });
-      const data = await r.json() as { encounter: EncounterRecord };
-      setTriageMsg(`✓ Triage complete — ${data.encounter.triageLevel} | ${data.encounter.encounterId}`);
+      const data = await r.json() as { encounter: EncounterRecord; aiOverrideActive?: boolean; bannerReason?: string };
+      if (data.aiOverrideActive && data.bannerReason) {
+        setOverrideSignal({ active: true, message: data.bannerReason });
+      }
+      setTriageMsg(`✓ Triage complete — ${data.encounter.triageLevel}${data.aiOverrideActive ? " [AI OVERRIDE]" : ""} | ${data.encounter.encounterId}`);
       setSymptoms("");
       setVisitReason("");
       await openPatient(selectedPatient.patientId);
@@ -254,6 +270,14 @@ export function PatientsFolderPanel() {
                     </Badge>
                   </div>
                   <p className="text-sm text-foreground mb-1">{enc.symptoms}</p>
+                  <div className="mb-2">
+                    <ClinicalRealismChips
+                      triageLevel={enc.triageLevel}
+                      completionStatus={enc.completionStatus}
+                      forensicLifecycleTimeline={enc.forensicLifecycleTimeline}
+                      aiOverrideTriggered={enc.aiOverrideTriggered}
+                    />
+                  </div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(enc.timestamp).toLocaleString()}</span>
                     <span className="flex items-center gap-1"><Stethoscope className="w-3 h-3" />{enc.assignedDoctor}</span>
@@ -311,6 +335,7 @@ export function PatientsFolderPanel() {
 
   return (
     <div className="p-6">
+      <ClinicalOverrideBanner overrideSignal={overrideSignal} />
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="text-xl font-bold text-foreground flex items-center gap-2">

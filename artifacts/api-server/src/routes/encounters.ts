@@ -24,6 +24,13 @@ export interface StatusHistoryEntry {
   clinicalObservation?: string;
 }
 
+export interface ForensicLogEntry {
+  logId: string;
+  eventType: "DOCTOR_CHAIN" | "DEATH_REPORT" | "RECOVERY_TRAJECTORY" | "AI_OVERRIDE" | "CROSS_HOSPITAL";
+  timestamp: string;
+  [key: string]: unknown;
+}
+
 export interface EncounterRecord {
   encounterId: string;
   patientId: string;
@@ -38,6 +45,8 @@ export interface EncounterRecord {
   timestamp: string;
   crossHospitalContinuityLogs: ContinuityEntry[];
   statusHistory: StatusHistoryEntry[];
+  forensicLifecycleTimeline: ForensicLogEntry[];
+  aiOverrideTriggered?: boolean;
   completionStatus?: string;
   isArchived?: boolean;
   terminationTimestamp?: string;
@@ -53,6 +62,7 @@ const RED_KEYWORDS = [
   "chest pain", "cardiac", "breathing failure", "not breathing",
   "unconscious", "heart attack", "stroke", "severe bleeding", "seizure",
   "respiratory failure", "anaphylaxis", "coma", "no pulse",
+  "cardiac arrest", "breathing collapse", "internal bleeding",
 ];
 
 const YELLOW_KEYWORDS = [
@@ -73,6 +83,28 @@ function verdictLabel(level: "RED" | "YELLOW" | "GREEN"): string {
   if (level === "RED") return "RED — Critical Emergency";
   if (level === "YELLOW") return "YELLOW — Urgent Care Required";
   return "GREEN — Stable / Routine Monitoring";
+}
+
+function scanForCriticalPhrase(text: string): string | undefined {
+  const lower = text.toLowerCase();
+  return RED_KEYWORDS.find((p) => lower.includes(p));
+}
+
+function overrideBannerMessage(phrase: string): string {
+  if (phrase.includes("heart") || phrase.includes("cardiac")) {
+    return "AI Override Activated: Cardiac emergency indicators detected.";
+  }
+  if (phrase.includes("breath") || phrase.includes("collapse") || phrase.includes("respiratory")) {
+    return "AI Override Activated: Critical respiratory failure language detected.";
+  }
+  if (phrase.includes("bleed") || phrase.includes("bleeding")) {
+    return "AI Override Activated: Severe hemorrhage indicators detected.";
+  }
+  return "AI Override Activated: Neurological emergency severity threshold exceeded.";
+}
+
+function mkForensicId(): string {
+  return `FOR-LN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
 const router = Router();
@@ -96,6 +128,34 @@ router.post("/process", (req, res) => {
       ? allergies.split(",").map((a: string) => a.trim()).filter(Boolean)
       : patient?.allergies ?? [];
 
+  const ts0 = new Date().toISOString();
+  const docSel = (juniorDoctorSelection || "GREEN").toString().toUpperCase();
+  const aiOverrideActive = finalTriageLevel === "RED" && docSel !== "RED";
+  const matchedIntakePhrase = scanForCriticalPhrase(String(symptoms) + " " + String(visitReason || ""));
+  const bannerReason = aiOverrideActive && matchedIntakePhrase ? overrideBannerMessage(matchedIntakePhrase) : undefined;
+
+  const forensicTimeline: ForensicLogEntry[] = [];
+
+  if (aiOverrideActive && matchedIntakePhrase) {
+    forensicTimeline.push({
+      logId: mkForensicId(),
+      eventType: "AI_OVERRIDE",
+      timestamp: ts0,
+      originalDoctorVerdict: docSel,
+      aiOverrideReason: bannerReason,
+      detectedEmergencyPhrase: matchedIntakePhrase,
+      authorizingDoctorId: String(doctorId || "AUTO"),
+    });
+  }
+  forensicTimeline.push({
+    logId: mkForensicId(),
+    eventType: "DOCTOR_CHAIN",
+    timestamp: ts0,
+    doctorId: String(doctorId || "AUTO"),
+    roleInTreatment: "Initial Triage Classification",
+    escalationDecision: finalTriageLevel,
+  });
+
   const record: EncounterRecord = {
     encounterId,
     patientId,
@@ -107,7 +167,7 @@ router.post("/process", (req, res) => {
     allergies: allergyList,
     assignedDoctor: String(doctorId || "Unassigned"),
     doctorId: String(doctorId || ""),
-    timestamp: new Date().toISOString(),
+    timestamp: ts0,
     crossHospitalContinuityLogs: [],
     statusHistory: [
       {
@@ -116,15 +176,17 @@ router.post("/process", (req, res) => {
         previousLevel: "",
         newLevel: finalTriageLevel,
         doctorId: String(doctorId || "AUTO"),
-        timestamp: new Date().toISOString(),
+        timestamp: ts0,
       },
     ],
+    forensicLifecycleTimeline: forensicTimeline,
+    aiOverrideTriggered: aiOverrideActive && !!matchedIntakePhrase,
     isArchived: false,
   };
 
   encounters.set(encounterId, record);
-  req.log.info(`[TRIAGE] ENC ${encounterId} → ${finalTriageLevel} | Patient ${patientId} | Doctor ${doctorId}`);
-  res.status(201).json({ success: true, encounter: record });
+  req.log.info(`[TRIAGE] ENC ${encounterId} → ${finalTriageLevel} | Patient ${patientId} | Doctor ${doctorId} | AIOverride:${record.aiOverrideTriggered}`);
+  res.status(201).json({ success: true, encounter: record, aiOverrideActive: record.aiOverrideTriggered, bannerReason });
 });
 
 // GET /api/triage/encounters
@@ -184,6 +246,18 @@ router.post("/encounters/:id/continuity", (req, res) => {
     verificationStatus: DEAN_REGISTRY.includes(String(doctorId || "").trim()) ? "Dean-Verified" : "Unverified",
   };
   enc.crossHospitalContinuityLogs.push(entry);
+  if (!enc.forensicLifecycleTimeline) enc.forensicLifecycleTimeline = [];
+  enc.forensicLifecycleTimeline.push({
+    logId: mkForensicId(),
+    eventType: "CROSS_HOSPITAL",
+    timestamp: entry.timestamp,
+    facilityName: String(hospital || ""),
+    externalDoctorLicenseId: String(medRegId || ""),
+    externalDoctorPhone: String(doctorPhone || ""),
+    externalDoctorId: String(doctorId || ""),
+    treatmentSummary: String(notes),
+    verificationStatus: entry.verificationStatus,
+  });
   res.status(201).json({ success: true, entry });
 });
 
@@ -260,12 +334,68 @@ router.patch("/emergency-hub/action", (req, res) => {
     return;
   }
 
+  // Forensic lifecycle timeline
+  if (!activeEncounter.forensicLifecycleTimeline) activeEncounter.forensicLifecycleTimeline = [];
+
+  // Scan reason + observation for critical emergency phrases
+  const combinedHubText = `${reasonStr} ${observationStr ?? ""}`;
+  const matchedHubPhrase = scanForCriticalPhrase(combinedHubText);
+  let hubAiOverride = false;
+  let hubBannerReason: string | undefined;
+  if (matchedHubPhrase) {
+    hubAiOverride = true;
+    hubBannerReason = overrideBannerMessage(matchedHubPhrase);
+    activeEncounter.aiOverrideTriggered = true;
+    activeEncounter.forensicLifecycleTimeline.push({
+      logId: mkForensicId(),
+      eventType: "AI_OVERRIDE",
+      timestamp: ts,
+      originalDoctorVerdict: statusAction,
+      aiOverrideReason: hubBannerReason,
+      detectedEmergencyPhrase: matchedHubPhrase,
+      authorizingDoctorId: String(doctorId),
+    });
+  }
+
+  activeEncounter.forensicLifecycleTimeline.push({
+    logId: mkForensicId(),
+    eventType: "DOCTOR_CHAIN",
+    timestamp: ts,
+    doctorId: String(doctorId),
+    roleInTreatment: `Status Mutation: ${statusAction}`,
+    escalationDecision: statusAction,
+    observationNotes: observationStr,
+  });
+
+  if (statusAction === "DECEASED") {
+    activeEncounter.forensicLifecycleTimeline.push({
+      logId: mkForensicId(),
+      eventType: "DEATH_REPORT",
+      timestamp: ts,
+      exactCauseOfDeath: reasonStr,
+      symptomsBeforeDeath: activeEncounter.symptoms,
+      attendingDoctors: [String(doctorId)],
+      finalClinicalNotes: observationStr,
+    });
+  } else if (statusAction === "OUT_OF_DANGER") {
+    activeEncounter.forensicLifecycleTimeline.push({
+      logId: mkForensicId(),
+      eventType: "RECOVERY_TRAJECTORY",
+      timestamp: ts,
+      stabilizationLog: reasonStr,
+      recoveryObservations: observationStr,
+      dischargeCode: "OUT_OF_DANGER",
+    });
+  }
+
   encounters.set(encounterId, activeEncounter);
-  req.log.info(`[EMERGENCY-HUB] ${encounterId} → ${statusAction} by Doctor ${doctorId}`);
+  req.log.info(`[EMERGENCY-HUB] ${encounterId} → ${statusAction} by Doctor ${doctorId} | AIOverride:${hubAiOverride}`);
   res.status(200).json({
     success: true,
     message: `Patient state modified to ${statusAction}. Queue recalculated.`,
     encounter: activeEncounter,
+    aiOverrideActive: hubAiOverride,
+    bannerReason: hubBannerReason,
   });
 });
 
@@ -363,9 +493,63 @@ router.patch("/queue/action", (req, res) => {
     return;
   }
 
+  // Forensic lifecycle timeline
+  if (!enc.forensicLifecycleTimeline) enc.forensicLifecycleTimeline = [];
+
+  // Scan reason + observation for critical emergency phrases
+  const combinedQueueText = `${reasonStr} ${observationStr ?? ""}`;
+  const matchedQueuePhrase = scanForCriticalPhrase(combinedQueueText);
+  let queueAiOverride = false;
+  let queueBannerReason: string | undefined;
+  if (matchedQueuePhrase) {
+    queueAiOverride = true;
+    queueBannerReason = overrideBannerMessage(matchedQueuePhrase);
+    enc.aiOverrideTriggered = true;
+    enc.forensicLifecycleTimeline.push({
+      logId: mkForensicId(),
+      eventType: "AI_OVERRIDE",
+      timestamp: ts,
+      originalDoctorVerdict: action,
+      aiOverrideReason: queueBannerReason,
+      detectedEmergencyPhrase: matchedQueuePhrase,
+      authorizingDoctorId: String(doctorId),
+    });
+  }
+
+  enc.forensicLifecycleTimeline.push({
+    logId: mkForensicId(),
+    eventType: "DOCTOR_CHAIN",
+    timestamp: ts,
+    doctorId: String(doctorId),
+    roleInTreatment: `Status Mutation: ${action}`,
+    escalationDecision: action,
+    observationNotes: observationStr,
+  });
+
+  if (action === "DECEASED") {
+    enc.forensicLifecycleTimeline.push({
+      logId: mkForensicId(),
+      eventType: "DEATH_REPORT",
+      timestamp: ts,
+      exactCauseOfDeath: reasonStr,
+      symptomsBeforeDeath: enc.symptoms,
+      attendingDoctors: [String(doctorId)],
+      finalClinicalNotes: observationStr,
+    });
+  } else if (action === "COMPLETED") {
+    enc.forensicLifecycleTimeline.push({
+      logId: mkForensicId(),
+      eventType: "RECOVERY_TRAJECTORY",
+      timestamp: ts,
+      stabilizationLog: reasonStr,
+      recoveryObservations: observationStr,
+      dischargeCode: "COMPLETED",
+    });
+  }
+
   encounters.set(encounterId, enc);
-  req.log.info(`[QUEUE-ACTION] ${encounterId} → ${action} by Doctor ${doctorId}`);
-  res.status(200).json({ success: true, encounter: enc });
+  req.log.info(`[QUEUE-ACTION] ${encounterId} → ${action} by Doctor ${doctorId} | AIOverride:${queueAiOverride}`);
+  res.status(200).json({ success: true, encounter: enc, aiOverrideActive: queueAiOverride, bannerReason: queueBannerReason });
 });
 
 // GET /api/triage/patient/:patientId

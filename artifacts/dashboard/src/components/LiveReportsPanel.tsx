@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ClinicalOverrideBanner, type OverrideSignal } from "./ClinicalOverrideBanner";
+import { ClinicalRealismChips, type ForensicLogEntry } from "./ClinicalRealismChips";
 
 const CACHE_KEY = "HOSPITAL_DB_ENCOUNTERS_RED";
 
@@ -44,6 +46,8 @@ interface EncounterRecord {
   timestamp: string;
   crossHospitalContinuityLogs: ContinuityEntry[];
   statusHistory?: StatusHistoryEntry[];
+  forensicLifecycleTimeline?: ForensicLogEntry[];
+  aiOverrideTriggered?: boolean;
   isArchived?: boolean;
 }
 
@@ -71,6 +75,7 @@ export function LiveReportsPanel() {
   const [fromCache, setFromCache] = useState(false);
   const [actionState, setActionState] = useState<Record<string, ActionState>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [overrideSignal, setOverrideSignal] = useState<OverrideSignal | null>(null);
 
   const fetchEncounters = () => {
     setLoading(true);
@@ -167,10 +172,13 @@ export function LiveReportsPanel() {
           clinicalObservation: state.clinicalObservation.trim() || undefined,
         }),
       });
-      const data = await res.json() as { success: boolean; error?: string };
+      const data = await res.json() as { success: boolean; error?: string; aiOverrideActive?: boolean; bannerReason?: string };
       if (!res.ok || !data.success) {
         updateAction(encounterId, { loading: false, error: data.error ?? "Action failed." });
         return;
+      }
+      if (data.aiOverrideActive && data.bannerReason) {
+        setOverrideSignal({ active: true, message: data.bannerReason });
       }
       const updated = encounters.filter((e) => e.encounterId !== encounterId);
       setEncounters(updated);
@@ -188,6 +196,7 @@ export function LiveReportsPanel() {
 
   return (
     <div className="p-6">
+      <ClinicalOverrideBanner overrideSignal={overrideSignal} />
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
@@ -306,6 +315,15 @@ export function LiveReportsPanel() {
                           <p className="text-sm text-teal-400 font-semibold">{enc.assignedDoctor}</p>
                           {enc.doctorId && <p className="text-xs text-slate-500 font-mono">ID: {enc.doctorId}</p>}
                         </div>
+                      </div>
+
+                      {/* Survival state + forensic chips */}
+                      <div className="border-b border-slate-800 pb-3 mb-1">
+                        <ClinicalRealismChips
+                          triageLevel={enc.triageLevel}
+                          forensicLifecycleTimeline={enc.forensicLifecycleTimeline}
+                          aiOverrideTriggered={enc.aiOverrideTriggered}
+                        />
                       </div>
 
                       {/* Timeline */}

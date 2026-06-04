@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
+import { ClinicalRealismChips } from "@/components/ClinicalRealismChips";
 import {
   User, Heart, Clock, LogOut, Activity, Bot, FileText,
   Phone, Mail, Calendar, Loader2, AlertTriangle, Stethoscope,
@@ -45,6 +46,13 @@ interface StatusHistoryEntry {
   clinicalObservation?: string;
 }
 
+interface ForensicLogEntry {
+  logId: string;
+  eventType: "DOCTOR_CHAIN" | "DEATH_REPORT" | "RECOVERY_TRAJECTORY" | "AI_OVERRIDE" | "CROSS_HOSPITAL";
+  timestamp: string;
+  [key: string]: unknown;
+}
+
 interface EncounterRecord {
   encounterId: string;
   symptoms: string;
@@ -57,6 +65,8 @@ interface EncounterRecord {
   timestamp: string;
   crossHospitalContinuityLogs: ContinuityEntry[];
   statusHistory?: StatusHistoryEntry[];
+  forensicLifecycleTimeline?: ForensicLogEntry[];
+  aiOverrideTriggered?: boolean;
   completionStatus?: string;
   isArchived?: boolean;
   deceasedAt?: string;
@@ -233,6 +243,14 @@ function EncounterCard({ enc }: { enc: EncounterRecord }) {
         {enc.visitReason && (
           <p className="text-xs text-muted-foreground mb-2">Reason: {enc.visitReason}</p>
         )}
+        <div className="mb-2">
+          <ClinicalRealismChips
+            triageLevel={enc.triageLevel}
+            completionStatus={enc.completionStatus}
+            forensicLifecycleTimeline={enc.forensicLifecycleTimeline}
+            aiOverrideTriggered={enc.aiOverrideTriggered}
+          />
+        </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(enc.timestamp).toLocaleString()}</span>
           <span className="flex items-center gap-1"><Stethoscope className="w-3 h-3" />{enc.assignedDoctor}</span>
