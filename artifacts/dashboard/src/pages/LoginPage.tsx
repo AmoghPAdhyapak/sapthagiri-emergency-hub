@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/App";
 
 type PortalTab = "patient" | "staff";
 type PatientLoginMode = "PHONE_OTP" | "NAME_PASSWORD";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
+  const { login } = useAuth();
   const [tab, setTab] = useState<PortalTab>("patient");
   const [patLoginMode, setPatLoginMode] = useState<PatientLoginMode>("PHONE_OTP");
 
@@ -62,17 +64,18 @@ export default function LoginPage() {
       });
       const data = await res.json() as {
         error?: string;
-        user?: { name: string; patientId: string; phone: string; email: string; age: string };
+        user?: { name: string; patientId: string; phone: string; email: string; age: string; allergies?: string[] };
       };
 
       if (!res.ok) {
+        // Account not in backend — attempt to re-register from cached localStorage profile
         if (data.error?.includes("No patient account found")) {
           try {
             const stored = localStorage.getItem("sapthagiri_user");
             if (stored) {
               const cached = JSON.parse(stored) as {
                 name?: string; phone?: string; age?: string;
-                email?: string; patientId?: string; role?: string;
+                email?: string; patientId?: string; role?: string; allergies?: string[];
               };
               if (cached.role === "patient" && cachedProfileMatches(cached)) {
                 const regRes = await fetch("/api/auth/patient/register", {
@@ -84,37 +87,39 @@ export default function LoginPage() {
                     age: cached.age ?? "",
                     email: cached.email ?? "",
                     password: patPassword,
+                    allergies: cached.allergies ?? [],
                   }),
                 });
                 if (regRes.ok) {
-                  const regData = await regRes.json() as { patientId?: string; name?: string };
+                  const regData = await regRes.json() as { patientId?: string; name?: string; user?: { patientId?: string; name?: string; phone?: string } };
                   const refreshed = {
                     ...cached,
-                    patientId: regData.patientId ?? cached.patientId,
-                    role: "patient",
+                    patientId: regData.patientId ?? regData.user?.patientId ?? cached.patientId,
+                    role: "patient" as const,
                   };
-                  localStorage.setItem("sapthagiri_user", JSON.stringify(refreshed));
-                  localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
+                  login(refreshed);
                   setLocation("/patient");
                   return;
                 }
               }
             }
-          } catch { /* fall through */ }
+          } catch { /* fall through to error */ }
         }
         setPatError(data.error ?? "Login failed.");
         return;
       }
 
-      localStorage.setItem("sapthagiri_user", JSON.stringify({ ...data.user, role: "patient" }));
-      localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
+      // Successful login — update auth context (also writes localStorage)
+      login({ ...data.user, role: "patient" });
       setLocation("/patient");
     } catch {
+      // Network error fallback — try to use cached profile if it matches
       try {
         const stored = localStorage.getItem("sapthagiri_user");
         if (stored) {
           const u = JSON.parse(stored) as { phone?: string; name?: string; role?: string };
           if (u.role === "patient" && cachedProfileMatches(u)) {
+            login(u as Parameters<typeof login>[0]);
             setLocation("/patient");
             return;
           }
@@ -143,8 +148,7 @@ export default function LoginPage() {
         setStaffLoading(false);
         return;
       }
-      localStorage.setItem("sapthagiri_user", JSON.stringify({ ...data.user, role: data.user?.role ?? "staff" }));
-      localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
+      login({ ...data.user, role: data.user?.role ?? "staff" });
       setLocation("/dashboard");
     } catch {
       setStaffError("Network error. Please try again.");
@@ -154,8 +158,7 @@ export default function LoginPage() {
   };
 
   const handleGuestLogin = () => {
-    localStorage.setItem("sapthagiri_user", JSON.stringify({ name: "Guest Staff", staffId: "GUEST", role: "staff" }));
-    localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
+    login({ name: "Guest Staff", staffId: "GUEST", role: "staff" });
     setLocation("/dashboard");
   };
 

@@ -26,6 +26,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/App";
 
 const SUPPORT_EMAIL = "sapthagiri.healthsupport@gmail.com";
 const OTP_TTL = 120;
@@ -62,6 +63,7 @@ async function apiVerifyOtp(phone: string, otp: string): Promise<void> {
 
 export default function SignUpPage() {
   const [, setLocation] = useLocation();
+  const { login } = useAuth();
   const [step, setStep] = useState<Step>("phone");
 
   const [phone, setPhone] = useState("");
@@ -177,39 +179,32 @@ export default function SignUpPage() {
           allergies,
         }),
       });
-      const data = await res.json() as { error?: string; patientId?: string; name?: string };
-      const patientId = data.patientId ?? `Patient-${phone.replace(/\D/g, "").slice(-4)}`;
+      const data = await res.json() as { error?: string; patientId?: string; name?: string; user?: { patientId?: string } };
+      const patientId = data.patientId ?? data.user?.patientId ?? `Patient-${phone.replace(/\D/g, "").slice(-4)}`;
 
-      localStorage.removeItem(`sapthagiri_med_${phone.trim()}`);
-      localStorage.setItem(
-        "sapthagiri_user",
-        JSON.stringify({
-          name: name.trim(),
-          phone: phone.trim(),
-          email: email.trim(),
-          age: age.trim(),
-          allergies,
-          patientId,
-          role: "patient",
-        })
-      );
-      localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
+      // Update auth context (also persists to localStorage)
+      login({
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        age: age.trim(),
+        allergies,
+        patientId,
+        role: "patient",
+      });
       setLocation("/patient");
     } catch {
+      // Network error fallback — still log in with locally derived ID
       const patientId = `Patient-${phone.replace(/\D/g, "").slice(-4)}`;
-      localStorage.setItem(
-        "sapthagiri_user",
-        JSON.stringify({
-          name: name.trim(),
-          phone: phone.trim(),
-          email: email.trim(),
-          age: age.trim(),
-          allergies,
-          patientId,
-          role: "patient",
-        })
-      );
-      localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
+      login({
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        age: age.trim(),
+        allergies,
+        patientId,
+        role: "patient",
+      });
       setLocation("/patient");
     } finally {
       setRegistering(false);

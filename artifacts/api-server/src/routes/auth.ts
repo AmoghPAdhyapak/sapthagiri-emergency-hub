@@ -70,6 +70,45 @@ function rowToPatientUser(row: PatientRow): PatientUser {
 
 const router = Router();
 
+// POST /api/auth/verify — backend-as-source-of-truth session rehydration
+// Called by AuthProvider on every page load to verify the cached localStorage session
+// against the persistent SQLite store.
+router.post("/verify", (req, res) => {
+  const { role, id } = req.body || {};
+  if (!role || !id) {
+    res.status(400).json({ valid: false, error: "Role and reference ID required for synchronization verification." });
+    return;
+  }
+
+  if (role === "patient") {
+    const row = getPatientById(String(id));
+    if (!row) {
+      res.status(404).json({ valid: false, error: "Persistent patient registration parameters not located." });
+      return;
+    }
+    const user = rowToPatientUser(row);
+    const { password: _, ...safe } = user;
+    res.json({ valid: true, role: "patient", user: safe });
+    return;
+  }
+
+  // Staff and guest-staff paths
+  // Guest users (GUEST id) are not persisted — return a synthetic valid response
+  // so they aren't forcibly logged out on refresh.
+  if (String(id).toUpperCase() === "GUEST") {
+    res.json({ valid: true, role: "staff", user: { name: "Guest Staff", staffId: "GUEST", role: "staff" } });
+    return;
+  }
+
+  const user = getStaffById(String(id).toUpperCase());
+  if (!user) {
+    res.status(404).json({ valid: false, error: "Persistent staff registration parameters not located." });
+    return;
+  }
+  const { password: _, ...safe } = user;
+  res.json({ valid: true, role: user.role.toLowerCase(), user: safe });
+});
+
 // POST /api/auth/patient/register
 router.post("/patient/register", (req, res) => {
   const { name, phone, age, email, password, allergies } = req.body || {};

@@ -1,12 +1,27 @@
 import Database from "better-sqlite3";
 import path from "node:path";
+import fs from "node:fs";
 
-// At runtime __dirname = artifacts/api-server/dist/ (set by build banner)
-// Go one level up to store the db file in artifacts/api-server/
-const dbPath = path.resolve(__dirname, "../hospital_ecosystem.db");
+function resolvePersistentDbPath(): string {
+  if (process.env["DATABASE_STORAGE_PATH"]) {
+    const targetDir = path.resolve(process.env["DATABASE_STORAGE_PATH"]);
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    return path.join(targetDir, "hospital_ecosystem.db");
+  }
 
+  // Default: store next to the built bundle (artifacts/api-server/dist/ → artifacts/api-server/)
+  // __dirname is set to artifacts/api-server/dist/ by the esbuild banner at runtime
+  const targetDir = path.resolve(__dirname, "..");
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+  return path.join(targetDir, "hospital_ecosystem.db");
+}
+
+const dbPath = resolvePersistentDbPath();
 export const db = new Database(dbPath);
-
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
@@ -204,7 +219,6 @@ export function getStaffById(staffId: string): StaffRow | undefined {
 export function upsertEncounter<T extends { encounterId: string; patientId: string; forensicLifecycleTimeline?: unknown[] }>(enc: T): void {
   stmts.upsertEncounter.run(enc.encounterId, enc.patientId, JSON.stringify(enc));
 
-  // Sync each forensic log entry into the dedicated table
   if (Array.isArray(enc.forensicLifecycleTimeline)) {
     for (const entry of enc.forensicLifecycleTimeline as Array<Record<string, unknown>>) {
       if (entry["logId"] && entry["eventType"] && entry["timestamp"]) {
@@ -239,7 +253,7 @@ export function encounterIdExists(encounterId: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Forensic log helpers (for sync-master endpoint)
+// Forensic log helpers
 // ---------------------------------------------------------------------------
 
 export interface ForensicLogRow {
