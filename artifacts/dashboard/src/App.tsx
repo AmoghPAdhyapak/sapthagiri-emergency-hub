@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.valid && data.user) {
           setUser(data.user);
           localStorage.setItem("sapthagiri_user", JSON.stringify(data.user));
-          localStorage.setItem("sapthagiri_login_ts", new Date().toISOString());
+          localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
         } else {
           throw new Error("Invalid session.");
         }
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (userData: UserProfile) => {
     setUser(userData);
     localStorage.setItem("sapthagiri_user", JSON.stringify(userData));
-    localStorage.setItem("sapthagiri_login_ts", new Date().toISOString());
+    localStorage.setItem("sapthagiri_login_ts", String(Date.now()));
   };
 
   const logout = () => {
