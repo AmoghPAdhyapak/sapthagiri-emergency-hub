@@ -172,6 +172,14 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background pointer-events-none" />
 
+      <button
+        onClick={() => setLocation("/")}
+        className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-border/40 hover:border-border transition-all"
+      >
+        <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+        Back
+      </button>
+
       <div className="w-full max-w-md relative z-10">
         <div className="flex flex-col items-center mb-8 text-center">
           <img src={logoUrl} alt="Sapthagiri NPS University" className="h-20 w-20 object-contain mb-3" />
