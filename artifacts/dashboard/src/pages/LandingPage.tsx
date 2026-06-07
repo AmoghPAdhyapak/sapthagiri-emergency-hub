@@ -35,6 +35,17 @@ export default function LandingPage() {
   const [patError, setPatError] = useState("");
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"responsive" | "desktop">(() =>
+    (localStorage.getItem("view_mode") as "responsive" | "desktop") ?? "responsive"
+  );
+
+  const toggleViewMode = () => {
+    const next: "responsive" | "desktop" = viewMode === "desktop" ? "responsive" : "desktop";
+    setViewMode(next);
+    localStorage.setItem("view_mode", next);
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (meta) meta.content = next === "desktop" ? "width=1280" : "width=device-width, initial-scale=1.0";
+  };
 
   const scrollToLogin = () =>
     document.getElementById("login-section")?.scrollIntoView({ behavior: "smooth" });
@@ -155,6 +166,16 @@ export default function LandingPage() {
           <Button variant="ghost" size="sm" onClick={scrollToLogin} data-testid="nav-login-button">
             Login
           </Button>
+
+          {/* Desktop/Mobile View Toggle */}
+          <button
+            onClick={toggleViewMode}
+            className="hidden sm:flex items-center gap-1.5 text-xs font-mono text-muted-foreground/60 hover:text-primary border border-border/40 hover:border-primary/40 px-2.5 py-1.5 rounded-md transition-colors bg-muted/20 hover:bg-primary/5"
+            title={viewMode === "desktop" ? "Switch to Mobile View" : "Switch to Desktop View"}
+          >
+            <span className="text-sm leading-none">{viewMode === "desktop" ? "🖥" : "📱"}</span>
+            <span className="hidden lg:inline text-[10px] tracking-wider uppercase">{viewMode === "desktop" ? "Desktop" : "Mobile"}</span>
+          </button>
 
           {/* Desktop: Dean Access + Staff Registration */}
           <div className="hidden md:flex items-center gap-4">
@@ -649,34 +670,6 @@ export default function LandingPage() {
           </p>
         </div>
       </footer>
-      <ViewModeSwitch />
-    </div>
-  );
-}
-
-function ViewModeSwitch() {
-  const [isDesktop, setIsDesktop] = useState(() => localStorage.getItem("view_mode") === "desktop");
-
-  const toggle = () => {
-    const next = !isDesktop;
-    setIsDesktop(next);
-    localStorage.setItem("view_mode", next ? "desktop" : "auto");
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-    if (meta) meta.content = next ? "width=1280" : "width=device-width, initial-scale=1.0";
-  };
-
-  return (
-    <div className="bg-background py-2 flex items-center justify-center gap-3 border-t border-border/10">
-      <span className="text-[10px] font-mono text-muted-foreground/40 uppercase tracking-widest select-none">
-        {isDesktop ? "🖥 Desktop View" : "📱 Responsive View"}
-      </span>
-      <span className="text-muted-foreground/20 text-[10px] select-none">·</span>
-      <button
-        onClick={toggle}
-        className="text-[10px] font-mono text-muted-foreground/50 hover:text-primary transition-colors"
-      >
-        {isDesktop ? "Switch to Mobile View" : "Switch to Desktop View"}
-      </button>
     </div>
   );
 }
