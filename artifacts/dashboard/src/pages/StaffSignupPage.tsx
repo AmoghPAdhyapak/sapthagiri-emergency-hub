@@ -17,12 +17,32 @@ const ROLE_OPTIONS = [
   "Radiologist",
   "Administrative Staff",
   "Emergency Technician",
+  "Staff Registration Officer",
 ];
+
+const ROLE_PREFIX_MAP: Record<string, string> = {
+  "Doctor":                     "DOC",
+  "Nurse":                      "NUR",
+  "Medical Officer":            "MED",
+  "Pharmacist":                 "PHA",
+  "Receptionist":               "REC",
+  "Lab Technician":             "LAB",
+  "Radiologist":                "RAD",
+  "Administrative Staff":       "ADM",
+  "Emergency Technician":       "EMT",
+  "Staff Registration Officer": "STF",
+};
+
+function suggestStaffId(role: string): string {
+  const prefix = ROLE_PREFIX_MAP[role] ?? "STF";
+  return `${prefix}${Math.floor(100 + Math.random() * 900)}`;
+}
 
 export default function StaffSignupPage() {
   const [, setLocation] = useLocation();
   const [name, setName] = useState("");
   const [staffId, setStaffId] = useState("");
+  const [idEdited, setIdEdited] = useState(false);
   const [role, setRole] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -30,11 +50,18 @@ export default function StaffSignupPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const handleRoleChange = (newRole: string) => {
+    setRole(newRole);
+    if (!idEdited) {
+      setStaffId(suggestStaffId(newRole));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!name.trim() || !staffId.trim() || !role || !password) {
-      setError("All fields are required.");
+    if (!name.trim() || !role || !password) {
+      setError("Name, role, and password are required.");
       return;
     }
     if (password !== confirm) {
@@ -52,13 +79,14 @@ export default function StaffSignupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), staffId: staffId.trim(), role, password }),
       });
-      const data = await res.json() as { error?: string; userId?: string };
+      const data = await res.json() as { error?: string; staffId?: string };
       if (!res.ok) {
         setError(data.error ?? "Registration failed.");
         return;
       }
-      setSuccess(`Account created! Staff ID: ${data.userId ?? staffId.toUpperCase()}. Redirecting to login…`);
-      setTimeout(() => setLocation("/login"), 2000);
+      const assignedId = data.staffId ?? staffId.toUpperCase();
+      setSuccess(`Account created! Your Staff ID is ${assignedId}. Use it to log in. Redirecting…`);
+      setTimeout(() => setLocation("/login"), 2500);
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -121,26 +149,11 @@ export default function StaffSignupPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="staffId">
-                    Staff / Doctor ID *{" "}
-                    <span className="text-xs text-muted-foreground font-normal">(e.g. DOC101 — becomes your login ID)</span>
-                  </Label>
-                  <Input
-                    id="staffId"
-                    placeholder="DOC101"
-                    value={staffId}
-                    onChange={(e) => setStaffId(e.target.value.toUpperCase())}
-                    className="bg-background/50 font-mono uppercase"
-                    autoComplete="username"
-                  />
-                </div>
-
-                <div className="space-y-2">
                   <Label htmlFor="role">Role *</Label>
                   <select
                     id="role"
                     value={role}
-                    onChange={(e) => setRole(e.target.value)}
+                    onChange={(e) => handleRoleChange(e.target.value)}
                     className="w-full h-10 px-3 rounded-md border border-input bg-background/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                   >
                     <option value="" disabled>Select your role…</option>
@@ -148,6 +161,28 @@ export default function StaffSignupPage() {
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="staffId">
+                      Staff ID <span className="text-xs text-muted-foreground font-normal">(login ID)</span>
+                    </Label>
+                    {!idEdited && role && (
+                      <span className="text-[10px] font-medium text-primary/70 uppercase tracking-wide">Auto-generated · editable</span>
+                    )}
+                  </div>
+                  <Input
+                    id="staffId"
+                    placeholder={role ? `e.g. ${suggestStaffId(role)}` : "Select role first"}
+                    value={staffId}
+                    onChange={(e) => { setStaffId(e.target.value.toUpperCase()); setIdEdited(true); }}
+                    className="bg-background/50 font-mono uppercase"
+                    autoComplete="username"
+                  />
+                  {!staffId && role && (
+                    <p className="text-[10px] text-muted-foreground">Leave blank to let the system generate a unique ID for your role.</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">

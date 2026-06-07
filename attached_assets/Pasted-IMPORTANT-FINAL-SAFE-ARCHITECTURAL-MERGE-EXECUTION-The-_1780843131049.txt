@@ -1,0 +1,197 @@
+IMPORTANT — FINAL SAFE ARCHITECTURAL MERGE EXECUTION
+
+The attached files contain REAL implementation code.
+
+The attached TypeScript/React architecture contains:
+
+* Dean governance hierarchy
+* Staff Registration Officer (SRO) system
+* role-based ID generation
+* soft-deactivation governance
+* AI emergency override protection
+* dual doctor assignment workflow
+* patient continuity preservation
+* OTP onboarding architecture
+* mobile responsiveness systems
+* institutional healthcare workflow modules
+
+The attached CSS architecture contains:
+
+* responsive layout stabilization
+* dean workspace rendering
+* mobile overflow fixes
+* AI governance warning styling
+* doctor assignment UI structure
+* responsive dashboard scaling
+* institutional table layouts
+* mobile navbar stabilization
+
+IMPORTANT:
+DO NOT treat the attached code as conceptual examples.
+
+These are REAL implementation structures.
+
+===========================================================
+SAFE MERGE DIRECTIVE
+====================
+
+Carefully extract and merge the ATTACHED REAL CODE MODULES into the EXISTING healthcare ecosystem incrementally and safely.
+
+DO NOT replace the entire:
+
+* App.tsx
+* routing system
+* SQLite persistence layer
+* authentication architecture
+* patient lifecycle systems
+* onboarding systems
+* AI systems
+* OTP systems
+* ThemeProvider
+* AuthProvider
+* dashboard architecture
+
+===========================================================
+FEATURES TO MERGE FROM ATTACHED CODE
+====================================
+
+1. Public Landing Hierarchy
+
+* Dean Access beside Login + Staff Registration
+* remove Dean Access from internal sidebar
+
+2. Dean Governance Panel
+
+* categorized institutional folders
+* Doctors
+* Nurses
+* Medical Officers
+* Pharmacists
+* Receptionists
+* Lab Technicians
+* Radiologists
+* Administrative Staff
+* Emergency Technicians
+* Staff Registration Officers
+
+3. Staff Registration Officer Governance
+
+* only Dean or active SRO can register staff
+
+4. Role-Based ID Generation
+
+* DOC###
+* NUR###
+* MED###
+* PHA###
+* REC###
+* LAB###
+* RAD###
+* ADM###
+* EMT###
+* STF###
+
+5. Soft-Deactivation Governance
+
+* accountStatus active/inactive
+* preserve continuity records
+* disable inactive logins
+
+6. Full Discharged/Deceased Continuity Visibility
+
+* preserve timelines
+* doctor notes
+* escalation history
+* AI verdicts
+* medications
+* continuity logs
+
+7. Dual Doctor Assignment System
+
+* dropdown selection
+* manual doctor typing
+
+8. AI Emergency Override Governance
+
+* automatically force RED escalation on critical symptoms
+* display governance warning notification
+* preserve existing AI logic while adding safety override layer
+
+9. Mobile Responsiveness Stabilization
+
+* sidebar overflow fixes
+* dean panel responsiveness
+* popup responsiveness
+* navbar responsiveness
+* mobile dashboard scaling
+* form responsiveness
+* horizontal scroll prevention
+* intake workflow responsiveness
+
+===========================================================
+CRITICAL IMPLEMENTATION RULES
+=============================
+
+DO NOT:
+
+* duplicate providers
+* duplicate App wrappers
+* overwrite working backend systems
+* destroy SQLite persistence
+* rebuild routing from scratch
+* remove current healthcare theme
+* replace working OTP systems
+* replace working AI systems
+* remove existing onboarding workflows
+* break continuity timelines
+* remove image persistence systems
+
+ONLY:
+
+* modularly extract the attached real code blocks
+* merge incrementally
+* preserve working architecture
+* preserve registrar-demo stability
+* preserve existing database synchronization logic
+
+===========================================================
+MOST IMPORTANT
+==============
+
+The attached TSX and CSS files are:
+
+* REAL IMPLEMENTATION CODE
+
+NOT:
+
+* pseudocode
+* conceptual prompts
+* replacement builds
+
+Use them as:
+
+* feature extraction sources
+* governance architecture sources
+* responsive CSS sources
+* institutional workflow sources
+* operational healthcare logic sources
+
+Carefully merge the ATTACHED REAL CODE SYSTEMS into the EXISTING application while preserving:
+
+* SQLite persistence integrity
+* authentication continuity
+* OTP onboarding workflows
+* AI governance protections
+* responsive rendering behavior
+* institutional healthcare operational stability
+* patient/staff lifecycle synchronization
+* continuity timeline persistence
+* existing dashboard functionality
+
+IMPORTANT FINAL DIRECTIVE:
+
+This is a SAFE MODULAR MERGE OPERATION.
+
+DO NOT replace the entire project architecture.
+
+Extract the REAL implementation systems from the attached TSX and CSS files and integrate them carefully into the current working ecosystem while preserving all stable functionality already present in the application.

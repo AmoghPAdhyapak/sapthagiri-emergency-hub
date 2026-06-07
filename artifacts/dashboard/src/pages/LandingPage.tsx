@@ -61,7 +61,7 @@ export default function LandingPage() {
       });
       const data = await res.json() as { error?: string; user?: { name: string; staffId: string; role?: string; createdAt?: string } };
       if (!res.ok) { setStaffError(data.error ?? "Login failed."); return; }
-      login({ ...data.user, role: data.user?.role ?? "staff" });
+      login({ ...data.user, name: data.user?.name ?? "", role: data.user?.role ?? "staff" });
       setLocation("/dashboard");
     } catch {
       setStaffError("Network error. Please try again.");
@@ -112,7 +112,7 @@ export default function LandingPage() {
                 });
                 if (regRes.ok) {
                   const rd = await regRes.json() as { patientId?: string; user?: { patientId?: string } };
-                  login({ ...cached, patientId: rd.patientId ?? rd.user?.patientId ?? cached.patientId, role: "patient" });
+                  login({ ...cached, name: cached.name ?? "", patientId: rd.patientId ?? rd.user?.patientId ?? cached.patientId, role: "patient" });
                   setLocation("/patient");
                   return;
                 }
@@ -123,7 +123,7 @@ export default function LandingPage() {
         setPatError(data.error ?? "Login failed.");
         return;
       }
-      login({ ...data.user, role: "patient" });
+      login({ ...data.user, name: data.user?.name ?? "", role: "patient" });
       setLocation("/patient");
     } catch {
       setPatError("Network error. Please try again.");
@@ -152,6 +152,21 @@ export default function LandingPage() {
 
           <Button variant="ghost" size="sm" onClick={scrollToLogin} data-testid="nav-login-button">
             Login
+          </Button>
+
+          {/* Dean Access — public entry point */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              localStorage.setItem("sapthagiri_dean_intent", "1");
+              setActiveTab("staff");
+              scrollToLogin();
+            }}
+            className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-400/40 font-semibold"
+            data-testid="nav-dean-access"
+          >
+            Dean Access
           </Button>
 
           {/* Restricted staff onboarding — institutional anchor */}

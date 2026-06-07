@@ -6,8 +6,37 @@ import {
   getPatientByName,
   insertStaff,
   getStaffById,
+  getAllStaff,
+  updateStaffStatus,
   type PatientRow,
 } from "../lib/sqliteDb";
+
+// ── Role-based Staff ID generation ───────────────────────────────────────────
+const ROLE_PREFIX_MAP: Record<string, string> = {
+  "Doctor":                     "DOC",
+  "Nurse":                      "NUR",
+  "Medical Officer":            "MED",
+  "Pharmacist":                 "PHA",
+  "Receptionist":               "REC",
+  "Lab Technician":             "LAB",
+  "Radiologist":                "RAD",
+  "Administrative Staff":       "ADM",
+  "Emergency Technician":       "EMT",
+  "Staff Registration Officer": "STF",
+};
+
+function generateStaffIdForRole(role: string): string {
+  const prefix = ROLE_PREFIX_MAP[role] ?? "STF";
+  const num = Math.floor(100 + Math.random() * 900).toString();
+  return `${prefix}${num}`;
+}
+
+function generateUniqueStaffId(role: string): string {
+  let id = generateStaffIdForRole(role);
+  let tries = 0;
+  while (getStaffById(id) && tries++ < 20) id = generateStaffIdForRole(role);
+  return id;
+}
 
 export interface PatientUser {
   patientId: string;
@@ -199,26 +228,41 @@ router.get("/patient/:patientId", (req, res) => {
 // POST /api/auth/staff/register
 router.post("/staff/register", (req, res) => {
   const { name, staffId, password, role } = req.body || {};
-  if (!name || !staffId || !password) {
-    res.status(400).json({ error: "name, staffId, password required" });
+  if (!name || !password) {
+    res.status(400).json({ error: "name and password required" });
     return;
   }
-  const idUpper = String(staffId).trim().toUpperCase();
+  const resolvedRole = String(role || "Staff").trim();
+
+  // Auto-generate ID from role prefix if not provided
+  let idUpper: string;
+  if (staffId && String(staffId).trim()) {
+    idUpper = String(staffId).trim().toUpperCase();
+  } else {
+    idUpper = generateUniqueStaffId(resolvedRole);
+  }
+
   if (getStaffById(idUpper)) {
-    res.status(409).json({ error: "Staff ID already registered." });
-    return;
+    // If manually provided ID conflicts, try auto-generating
+    if (staffId && String(staffId).trim()) {
+      res.status(409).json({ error: `Staff ID ${idUpper} already registered.` });
+      return;
+    }
+    idUpper = generateUniqueStaffId(resolvedRole);
   }
+
   const user = {
     staffId: idUpper,
     userId: `USR-${Date.now()}`,
     name: String(name).trim(),
     password: String(password),
-    role: String(role || "Staff"),
+    role: resolvedRole,
     createdAt: new Date().toISOString(),
+    accountStatus: "active" as const,
   };
   insertStaff(user);
   const { password: _, ...safe } = user;
-  res.status(201).json({ success: true, user: safe });
+  res.status(201).json({ success: true, staffId: idUpper, user: safe });
 });
 
 // POST /api/auth/staff/login
@@ -234,12 +278,40 @@ router.post("/staff/login", (req, res) => {
     res.status(404).json({ error: "Staff ID not registered. Please create an account." });
     return;
   }
+  if ((user.accountStatus ?? "active") === "inactive") {
+    res.status(403).json({ error: "This account has been deactivated. Contact your administrator." });
+    return;
+  }
   if (user.password !== String(password)) {
     res.status(401).json({ error: "Incorrect password." });
     return;
   }
   const { password: _, ...safe } = user;
   res.json({ success: true, user: safe });
+});
+
+// GET /api/auth/staff/all — Dean governance: list all staff accounts (sans passwords)
+router.get("/staff/all", (_req, res) => {
+  const staff = getAllStaff();
+  const safe = staff.map(({ password: _, ...s }) => s);
+  res.json(safe);
+});
+
+// PATCH /api/auth/staff/:staffId/status — Dean governance: activate / deactivate
+router.patch("/staff/:staffId/status", (req, res) => {
+  const idUpper = String(req.params.staffId).toUpperCase();
+  const { status } = req.body || {};
+  if (status !== "active" && status !== "inactive") {
+    res.status(400).json({ error: "status must be 'active' or 'inactive'" });
+    return;
+  }
+  const user = getStaffById(idUpper);
+  if (!user) {
+    res.status(404).json({ error: "Staff member not found." });
+    return;
+  }
+  updateStaffStatus(idUpper, status);
+  res.json({ success: true, staffId: idUpper, accountStatus: status });
 });
 
 export default router;

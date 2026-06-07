@@ -94,6 +94,7 @@ export default function LoginPage() {
                   const regData = await regRes.json() as { patientId?: string; name?: string; user?: { patientId?: string; name?: string; phone?: string } };
                   const refreshed = {
                     ...cached,
+                    name: cached.name ?? "",
                     patientId: regData.patientId ?? regData.user?.patientId ?? cached.patientId,
                     role: "patient" as const,
                   };
@@ -110,7 +111,7 @@ export default function LoginPage() {
       }
 
       // Successful login — update auth context (also writes localStorage)
-      login({ ...data.user, role: "patient" });
+      login({ ...data.user, name: data.user?.name ?? "", role: "patient" });
       setLocation("/patient");
     } catch {
       // Network error fallback — try to use cached profile if it matches
@@ -148,7 +149,7 @@ export default function LoginPage() {
         setStaffLoading(false);
         return;
       }
-      login({ ...data.user, role: data.user?.role ?? "staff" });
+      login({ ...data.user, name: data.user?.name ?? "", role: data.user?.role ?? "staff" });
       setLocation("/dashboard");
     } catch {
       setStaffError("Network error. Please try again.");

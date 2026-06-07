@@ -173,7 +173,6 @@ function Sidebar({
     { view: "notes",      icon: <FileText className="w-4 h-4 shrink-0" />,     label: "Medical Notes" },
     { view: "deceased",   icon: <Skull className="w-4 h-4 shrink-0" />,        label: "Deceased Registry" },
     { view: "account",    icon: <User className="w-4 h-4 shrink-0" />,         label: "Settings" },
-    { view: "dean",       icon: <Settings className="w-4 h-4 shrink-0" />,     label: "Dean Access" },
   ];
 
   return (
@@ -567,6 +566,20 @@ function getDeanAlerts(): DeanAlert[] {
   } catch { return []; }
 }
 
+interface StaffMember {
+  staffId: string;
+  name: string;
+  role: string;
+  createdAt: string;
+  accountStatus: string;
+}
+
+const ROLE_CATEGORIES = [
+  "Doctor", "Nurse", "Medical Officer", "Pharmacist",
+  "Receptionist", "Lab Technician", "Radiologist",
+  "Administrative Staff", "Emergency Technician", "Staff Registration Officer",
+];
+
 function DeanPanel() {
   const [unlocked, setUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -577,6 +590,31 @@ function DeanPanel() {
   const [newName, setNewName] = useState("");
   const [newId, setNewId] = useState("");
   const [addError, setAddError] = useState("");
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const fetchStaffList = async () => {
+    setStaffLoading(true);
+    try {
+      const res = await fetch("/api/auth/staff/all");
+      const data = await res.json() as StaffMember[];
+      setStaffList(data);
+    } catch { /* ignore */ } finally { setStaffLoading(false); }
+  };
+
+  const handleToggleStatus = async (s: StaffMember) => {
+    setTogglingId(s.staffId);
+    const newStatus = s.accountStatus === "active" ? "inactive" : "active";
+    try {
+      await fetch(`/api/auth/staff/${s.staffId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      setStaffList((prev) => prev.map((m) => m.staffId === s.staffId ? { ...m, accountStatus: newStatus } : m));
+    } catch { /* ignore */ } finally { setTogglingId(null); }
+  };
 
   const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -585,6 +623,7 @@ function DeanPanel() {
       setAlerts(getDeanAlerts());
       setUnlocked(true);
       setAuthError("");
+      void fetchStaffList();
     } else {
       setAuthError("Incorrect password. Access denied.");
     }
@@ -797,6 +836,70 @@ function DeanPanel() {
                 </div>
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Staff Governance ─────────────────────────────────────────────── */}
+      <Card className="mt-6 border-amber-500/20">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Users className="w-4 h-4 text-amber-400" /> Staff Governance ({staffList.length} accounts)
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={fetchStaffList} disabled={staffLoading} className="h-7 text-xs text-muted-foreground hover:text-foreground">
+              {staffLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Refresh"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {staffLoading && staffList.length === 0 ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground text-sm gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading staff registry…
+            </div>
+          ) : staffList.length === 0 ? (
+            <div className="px-6 py-8 text-center text-muted-foreground text-sm">No staff accounts registered yet.</div>
+          ) : (
+            ROLE_CATEGORIES.map((category) => {
+              const members = staffList.filter((s) => s.role === category);
+              if (members.length === 0) return null;
+              return (
+                <div key={category} className="border-b border-border/50 last:border-0">
+                  <div className="px-5 py-2 bg-muted/20 flex items-center justify-between">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400/80">{category}</p>
+                    <span className="text-[10px] font-mono text-muted-foreground">{members.length}</span>
+                  </div>
+                  {members.map((s) => (
+                    <div key={s.staffId} className={`flex items-center justify-between px-5 py-2.5 hover:bg-muted/10 transition-colors ${s.accountStatus === "inactive" ? "opacity-60" : ""}`}>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{s.name}</p>
+                        <p className="text-xs font-mono text-primary">{s.staffId}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                          s.accountStatus === "active"
+                            ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+                            : "text-slate-400 border-slate-600 bg-slate-800/50"
+                        }`}>
+                          {s.accountStatus}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={togglingId === s.staffId}
+                          className={`h-7 text-xs ${s.accountStatus === "active" ? "text-destructive/80 hover:text-destructive hover:bg-destructive/10" : "text-emerald-400 hover:bg-emerald-500/10"}`}
+                          onClick={() => void handleToggleStatus(s)}
+                        >
+                          {togglingId === s.staffId
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : s.accountStatus === "active" ? "Deactivate" : "Activate"}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })
           )}
         </CardContent>
       </Card>
@@ -1569,6 +1672,12 @@ export default function Dashboard() {
       } catch {
         // ignore
       }
+    }
+    // Dean Access intent from landing page
+    const deanIntent = localStorage.getItem("sapthagiri_dean_intent");
+    if (deanIntent) {
+      localStorage.removeItem("sapthagiri_dean_intent");
+      setActiveView("dean");
     }
     // Session expiry — 30 minutes
     const SESSION_MS = 30 * 60 * 1000;

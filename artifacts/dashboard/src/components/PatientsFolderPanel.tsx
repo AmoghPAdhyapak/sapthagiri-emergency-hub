@@ -68,7 +68,17 @@ const TRIAGE_COLORS = {
   GREEN:  "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
 };
 
-const DOCTOR_OPTIONS = ["DOC001", "DOC101", "DOC102", "DOC103", "DOC104"];
+function getDoctorsFromStorage(): { name: string; doctor_id: string }[] {
+  try {
+    const stored = localStorage.getItem("sapthagiri_doctors");
+    if (stored) return JSON.parse(stored) as { name: string; doctor_id: string }[];
+  } catch { /* ignore */ }
+  return [
+    { name: "Dr. Primary Physician", doctor_id: "DOC001" },
+    { name: "Dr. Senior Resident",   doctor_id: "DOC101" },
+    { name: "Dr. Emergency Consult", doctor_id: "DOC102" },
+  ];
+}
 
 export function PatientsFolderPanel() {
   const [patients, setPatients] = useState<PatientRecord[]>([]);
@@ -80,7 +90,11 @@ export function PatientsFolderPanel() {
   // Triage form state
   const [symptoms, setSymptoms] = useState("");
   const [visitReason, setVisitReason] = useState("");
-  const [doctorId, setDoctorId] = useState("DOC001");
+  const [doctorList] = useState<{ name: string; doctor_id: string }[]>(() => getDoctorsFromStorage());
+  const [doctorId, setDoctorId] = useState(() => getDoctorsFromStorage()[0]?.doctor_id ?? "DOC001");
+  const [secondaryDoctorId, setSecondaryDoctorId] = useState("");
+  const [secondaryManual, setSecondaryManual] = useState("");
+  const [useManualSecondary, setUseManualSecondary] = useState(false);
   const [triageLoading, setTriageLoading] = useState(false);
   const [triageMsg, setTriageMsg] = useState("");
   const [overrideSignal, setOverrideSignal] = useState<OverrideSignal | null>(null);
@@ -156,6 +170,7 @@ export function PatientsFolderPanel() {
           visitReason,
           doctorId,
           juniorDoctorSelection: "GREEN",
+          secondaryDoctorId: useManualSecondary ? secondaryManual : secondaryDoctorId,
           ...(medicalImageBase64 ? { medicalImageBase64 } : {}),
         }),
       });
@@ -283,18 +298,59 @@ export function PatientsFolderPanel() {
                 </div>
               </div>
 
+              {/* ── Dual Doctor Assignment ── */}
               <div>
-                <Label className="text-xs">Assign Doctor</Label>
+                <Label className="text-xs flex items-center gap-1.5">
+                  <Stethoscope className="w-3.5 h-3.5 text-primary" /> Primary Attending Doctor
+                </Label>
                 <Select value={doctorId} onValueChange={setDoctorId}>
                   <SelectTrigger className="mt-1 text-sm bg-background/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {DOCTOR_OPTIONS.map((d) => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    {doctorList.map((d) => (
+                      <SelectItem key={d.doctor_id} value={d.doctor_id}>
+                        {d.name} <span className="font-mono text-muted-foreground ml-1">({d.doctor_id})</span>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Stethoscope className="w-3.5 h-3.5 text-muted-foreground" /> Secondary Doctor (optional)
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => { setUseManualSecondary(v => !v); setSecondaryDoctorId(""); setSecondaryManual(""); }}
+                    className="text-[10px] text-primary hover:underline font-medium"
+                  >
+                    {useManualSecondary ? "Use dropdown" : "Type manually"}
+                  </button>
+                </div>
+                {useManualSecondary ? (
+                  <Input
+                    placeholder="Doctor name or ID (e.g. Dr. Smith / DOC202)"
+                    value={secondaryManual}
+                    onChange={(e) => setSecondaryManual(e.target.value)}
+                    className="bg-background/50 mt-1 text-sm"
+                  />
+                ) : (
+                  <Select value={secondaryDoctorId} onValueChange={setSecondaryDoctorId}>
+                    <SelectTrigger className="mt-1 text-sm bg-background/50">
+                      <SelectValue placeholder="None (single doctor assignment)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {doctorList.filter((d) => d.doctor_id !== doctorId).map((d) => (
+                        <SelectItem key={d.doctor_id} value={d.doctor_id}>
+                          {d.name} <span className="font-mono text-muted-foreground ml-1">({d.doctor_id})</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               {triageMsg && (
                 <p className={`text-xs p-2 rounded border font-medium ${

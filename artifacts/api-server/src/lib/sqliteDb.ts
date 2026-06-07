@@ -27,14 +27,20 @@ db.pragma("foreign_keys = ON");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS STAFF_ACCOUNTS (
-    staffId   TEXT PRIMARY KEY,
-    userId    TEXT NOT NULL,
-    name      TEXT NOT NULL,
-    password  TEXT NOT NULL,
-    role      TEXT NOT NULL DEFAULT 'Staff',
-    createdAt TEXT NOT NULL
+    staffId       TEXT PRIMARY KEY,
+    userId        TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    password      TEXT NOT NULL,
+    role          TEXT NOT NULL DEFAULT 'Staff',
+    createdAt     TEXT NOT NULL,
+    accountStatus TEXT NOT NULL DEFAULT 'active'
   );
+`);
 
+// Migrate: add accountStatus column to existing STAFF_ACCOUNTS rows if missing
+try { db.exec(`ALTER TABLE STAFF_ACCOUNTS ADD COLUMN accountStatus TEXT NOT NULL DEFAULT 'active'`); } catch { /* already exists */ }
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS PATIENT_MASTER_FOLDER (
     patientId    TEXT PRIMARY KEY,
     name         TEXT NOT NULL,
@@ -86,6 +92,7 @@ export interface StaffRow {
   password: string;
   role: string;
   createdAt: string;
+  accountStatus: string;
 }
 
 interface RawPatientRow {
@@ -136,10 +143,12 @@ const stmts = {
 
   // Staff
   insertStaff: db.prepare(`
-    INSERT INTO STAFF_ACCOUNTS (staffId, userId, name, password, role, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO STAFF_ACCOUNTS (staffId, userId, name, password, role, createdAt, accountStatus)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `),
   getStaffById: db.prepare(`SELECT * FROM STAFF_ACCOUNTS WHERE staffId = ?`),
+  getAllStaff: db.prepare(`SELECT * FROM STAFF_ACCOUNTS ORDER BY role ASC, createdAt DESC`),
+  updateStaffStatus: db.prepare(`UPDATE STAFF_ACCOUNTS SET accountStatus = ? WHERE staffId = ?`),
 
   // Encounters
   upsertEncounter: db.prepare(`
@@ -205,11 +214,19 @@ export function updatePatientSurvivalState(patientId: string, state: string): vo
 // ---------------------------------------------------------------------------
 
 export function insertStaff(s: StaffRow): void {
-  stmts.insertStaff.run(s.staffId, s.userId, s.name, s.password, s.role, s.createdAt);
+  stmts.insertStaff.run(s.staffId, s.userId, s.name, s.password, s.role, s.createdAt, s.accountStatus ?? "active");
 }
 
 export function getStaffById(staffId: string): StaffRow | undefined {
   return stmts.getStaffById.get(staffId) as StaffRow | undefined;
+}
+
+export function getAllStaff(): StaffRow[] {
+  return stmts.getAllStaff.all() as StaffRow[];
+}
+
+export function updateStaffStatus(staffId: string, status: "active" | "inactive"): void {
+  stmts.updateStaffStatus.run(status, staffId);
 }
 
 // ---------------------------------------------------------------------------
