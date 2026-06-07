@@ -74,6 +74,10 @@ function getDeanAlerts(): DeanAlert[] {
   } catch { return []; }
 }
 
+function suggestStfId(): string {
+  return `STF${Math.floor(100 + Math.random() * 900)}`;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function DeanPortalPage() {
   const [, setLocation] = useLocation();
@@ -98,6 +102,17 @@ export default function DeanPortalPage() {
   const [staffLoading, setStaffLoading] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // STF creation form (inside Staff Registration folder)
+  const [stfName, setStfName] = useState("");
+  const [stfId, setStfId] = useState("");
+  const [stfIdEdited, setStfIdEdited] = useState(false);
+  const [stfPassword, setStfPassword] = useState("");
+  const [stfConfirm, setStfConfirm] = useState("");
+  const [stfShowPass, setStfShowPass] = useState(false);
+  const [stfError, setStfError] = useState("");
+  const [stfSuccess, setStfSuccess] = useState("");
+  const [stfLoading, setStfLoading] = useState(false);
 
   // Folder accordion
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(["Doctor"]));
@@ -146,6 +161,39 @@ export default function DeanPortalPage() {
       setStaffList((prev) => prev.filter((m) => m.staffId !== staffId));
       setConfirmDeleteId(null);
     } catch { /* ignore */ } finally { setTogglingId(null); }
+  };
+
+  // ── STF account creation ───────────────────────────────────────────────────
+  const handleCreateStf = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStfError("");
+    if (!stfName.trim()) { setStfError("Full name is required."); return; }
+    if (!stfPassword) { setStfError("Password is required."); return; }
+    if (stfPassword.length < 6) { setStfError("Password must be at least 6 characters."); return; }
+    if (stfPassword !== stfConfirm) { setStfError("Passwords do not match."); return; }
+    const idToUse = (stfId.trim() || suggestStfId()).toUpperCase();
+    if (!/^STF\d{3}$/.test(idToUse)) {
+      setStfError("ID must be STF followed by exactly 3 digits (e.g. STF101).");
+      return;
+    }
+    setStfLoading(true);
+    try {
+      const res = await fetch("/api/auth/staff/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: stfName.trim(), staffId: idToUse, password: stfPassword, role: "Staff Registration Officer" }),
+      });
+      const data = await res.json() as { error?: string; staffId?: string };
+      if (!res.ok) { setStfError(data.error ?? "Registration failed."); return; }
+      const assignedId = data.staffId ?? idToUse;
+      setStfSuccess(`Account created — ID: ${assignedId}`);
+      setStfName(""); setStfId(""); setStfIdEdited(false); setStfPassword(""); setStfConfirm("");
+      void fetchStaffList();
+    } catch {
+      setStfError("Network error. Please try again.");
+    } finally {
+      setStfLoading(false);
+    }
   };
 
   // ── Doctor registry ────────────────────────────────────────────────────────
@@ -511,6 +559,97 @@ export default function DeanPortalPage() {
                                 </div>
                               </div>
                             ))}
+                          </div>
+                        )}
+                        {isSRO && (
+                          <div className="border-t border-amber-500/20 px-5 py-4 bg-amber-500/5 space-y-3">
+                            <p className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                              <Plus className="w-3.5 h-3.5" /> Create STF Account
+                            </p>
+                            {stfSuccess ? (
+                              <div className="flex items-center justify-between gap-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                                <p className="text-xs text-emerald-400 font-semibold">{stfSuccess}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => setStfSuccess("")}
+                                  className="text-[10px] text-muted-foreground hover:text-foreground shrink-0"
+                                >
+                                  Dismiss
+                                </button>
+                              </div>
+                            ) : (
+                              <form onSubmit={handleCreateStf} className="space-y-3">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Full Name</Label>
+                                    <Input
+                                      placeholder="Full Name"
+                                      value={stfName}
+                                      onChange={(e) => setStfName(e.target.value)}
+                                      className="h-8 text-xs bg-background/50"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">STF ID</Label>
+                                      {!stfIdEdited && <span className="text-[9px] text-amber-400/70">auto</span>}
+                                    </div>
+                                    <Input
+                                      placeholder="STF101"
+                                      value={stfId}
+                                      onChange={(e) => { setStfId(e.target.value.toUpperCase()); setStfIdEdited(true); }}
+                                      className="h-8 text-xs bg-background/50 font-mono uppercase"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Password</Label>
+                                    <div className="flex items-center bg-background/50 border border-input rounded-md focus-within:ring-1 focus-within:ring-ring h-8">
+                                      <input
+                                        type={stfShowPass ? "text" : "password"}
+                                        placeholder="Min 6 chars"
+                                        value={stfPassword}
+                                        onChange={(e) => setStfPassword(e.target.value)}
+                                        className="flex-1 bg-transparent px-2 py-1 text-xs outline-none font-mono min-w-0"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setStfShowPass((v) => !v)}
+                                        className="px-2 text-[9px] font-mono font-bold text-muted-foreground hover:text-primary shrink-0"
+                                      >
+                                        {stfShowPass ? "HIDE" : "SHOW"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Confirm</Label>
+                                    <Input
+                                      type="password"
+                                      placeholder="Re-enter"
+                                      value={stfConfirm}
+                                      onChange={(e) => setStfConfirm(e.target.value)}
+                                      className="h-8 text-xs bg-background/50 font-mono"
+                                    />
+                                  </div>
+                                </div>
+                                {stfError && (
+                                  <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded px-2 py-1.5">
+                                    {stfError}
+                                  </p>
+                                )}
+                                <Button
+                                  type="submit"
+                                  size="sm"
+                                  disabled={stfLoading}
+                                  className="w-full h-8 text-xs bg-amber-500 hover:bg-amber-400 text-black font-bold"
+                                >
+                                  {stfLoading
+                                    ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Creating…</>
+                                    : <><Plus className="w-3 h-3 mr-1" /> Create STF Account</>}
+                                </Button>
+                              </form>
+                            )}
                           </div>
                         )}
                       </div>
