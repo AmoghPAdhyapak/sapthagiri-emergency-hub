@@ -149,6 +149,7 @@ const stmts = {
   getStaffById: db.prepare(`SELECT * FROM STAFF_ACCOUNTS WHERE staffId = ?`),
   getAllStaff: db.prepare(`SELECT * FROM STAFF_ACCOUNTS ORDER BY role ASC, createdAt DESC`),
   updateStaffStatus: db.prepare(`UPDATE STAFF_ACCOUNTS SET accountStatus = ? WHERE staffId = ?`),
+  deleteStaff: db.prepare(`DELETE FROM STAFF_ACCOUNTS WHERE staffId = ?`),
 
   // Encounters
   upsertEncounter: db.prepare(`
@@ -227,6 +228,10 @@ export function getAllStaff(): StaffRow[] {
 
 export function updateStaffStatus(staffId: string, status: "active" | "inactive"): void {
   stmts.updateStaffStatus.run(status, staffId);
+}
+
+export function deleteStaff(staffId: string): void {
+  stmts.deleteStaff.run(staffId);
 }
 
 // ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import logoUrl from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
 const ROLE_OPTIONS = [
@@ -40,6 +41,17 @@ function suggestStaffId(role: string): string {
 
 export default function StaffSignupPage() {
   const [, setLocation] = useLocation();
+
+  // ── Step 1: SRO authentication ───────────────────────────────────────────
+  const [sroId, setSroId] = useState("");
+  const [sroPassword, setSroPassword] = useState("");
+  const [sroAuthLoading, setSroAuthLoading] = useState(false);
+  const [sroAuthError, setSroAuthError] = useState("");
+  const [sroAuthenticated, setSroAuthenticated] = useState(false);
+  const [sroName, setSroName] = useState("");
+  const [showSroPass, setShowSroPass] = useState(false);
+
+  // ── Step 2: Register new staff (after SRO auth) ──────────────────────────
   const [name, setName] = useState("");
   const [staffId, setStaffId] = useState("");
   const [idEdited, setIdEdited] = useState(false);
@@ -50,11 +62,46 @@ export default function StaffSignupPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const handleSroAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSroAuthError("");
+    const idUpper = sroId.trim().toUpperCase();
+    if (!idUpper || !sroPassword) {
+      setSroAuthError("Staff ID and password are required.");
+      return;
+    }
+    if (!/^STF\d{3}$/.test(idUpper)) {
+      setSroAuthError("Invalid ID format. Must be STF followed by exactly 3 digits (e.g. STF101).");
+      return;
+    }
+    setSroAuthLoading(true);
+    try {
+      const res = await fetch("/api/auth/staff/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffId: idUpper, password: sroPassword }),
+      });
+      const data = await res.json() as { error?: string; user?: { name: string; role?: string } };
+      if (!res.ok) {
+        setSroAuthError(data.error ?? "Authentication failed.");
+        return;
+      }
+      if (data.user?.role !== "Staff Registration Officer") {
+        setSroAuthError("Access denied. Only Staff Registration Officers (STF###) may access this portal.");
+        return;
+      }
+      setSroName(data.user.name);
+      setSroAuthenticated(true);
+    } catch {
+      setSroAuthError("Network error. Please try again.");
+    } finally {
+      setSroAuthLoading(false);
+    }
+  };
+
   const handleRoleChange = (newRole: string) => {
     setRole(newRole);
-    if (!idEdited) {
-      setStaffId(suggestStaffId(newRole));
-    }
+    if (!idEdited) setStaffId(suggestStaffId(newRole));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,8 +132,8 @@ export default function StaffSignupPage() {
         return;
       }
       const assignedId = data.staffId ?? staffId.toUpperCase();
-      setSuccess(`Account created! Your Staff ID is ${assignedId}. Use it to log in. Redirecting…`);
-      setTimeout(() => setLocation("/login"), 2500);
+      setSuccess(`Staff account created. Assigned ID: ${assignedId}. Share these credentials securely with the new staff member.`);
+      setName(""); setStaffId(""); setIdEdited(false); setRole(""); setPassword(""); setConfirm("");
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -102,8 +149,7 @@ export default function StaffSignupPage() {
         onClick={() => setLocation("/login")}
         className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-border/40 hover:border-border transition-all"
       >
-        <ChevronLeft className="w-3.5 h-3.5" />
-        Back
+        <ChevronLeft className="w-3.5 h-3.5" /> Back
       </button>
 
       <div className="w-full max-w-md relative z-10">
@@ -114,125 +160,158 @@ export default function StaffSignupPage() {
             Institute of Medical Sciences &amp; Research Center
           </p>
           <p className="text-xs text-primary/70 font-semibold uppercase tracking-wider mt-0.5">
-            Staff Account Registration
+            Staff Registration Portal
           </p>
         </div>
 
-        <Card className="border-primary/20 shadow-[0_0_30px_hsl(180_70%_50%_/_0.1)] bg-card/80 backdrop-blur-sm glow-border">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserPlus className="w-4 h-4 text-primary" />
-              Create Staff Account
-            </CardTitle>
-            <CardDescription>
-              Register your staff account to access the Medical Operations Portal.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {success ? (
-              <div className="flex items-center gap-2 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 font-medium">
-                <ShieldCheck className="w-5 h-5 shrink-0" />
-                {success}
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+        {!sroAuthenticated ? (
+          /* ── Step 1: SRO login ─────────────────────────────────────────── */
+          <Card className="border-amber-500/20 shadow-[0_0_30px_hsl(45_90%_50%_/_0.08)] bg-card/80 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+                Staff Registration Officer Login
+              </CardTitle>
+              <CardDescription>
+                This portal is restricted to authorized Staff Registration Officers. Enter your STF### credentials to proceed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSroAuth} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name *</Label>
+                  <Label htmlFor="sroId">SRO Staff ID</Label>
                   <Input
-                    id="name"
-                    placeholder="Dr. / Mr. / Ms. Full Name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="bg-background/50"
-                    autoComplete="name"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role *</Label>
-                  <select
-                    id="role"
-                    value={role}
-                    onChange={(e) => handleRoleChange(e.target.value)}
-                    className="w-full h-10 px-3 rounded-md border border-input bg-background/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  >
-                    <option value="" disabled>Select your role…</option>
-                    {ROLE_OPTIONS.map((r) => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="staffId">
-                      Staff ID <span className="text-xs text-muted-foreground font-normal">(login ID)</span>
-                    </Label>
-                    {!idEdited && role && (
-                      <span className="text-[10px] font-medium text-primary/70 uppercase tracking-wide">Auto-generated · editable</span>
-                    )}
-                  </div>
-                  <Input
-                    id="staffId"
-                    placeholder={role ? `e.g. ${suggestStaffId(role)}` : "Select role first"}
-                    value={staffId}
-                    onChange={(e) => { setStaffId(e.target.value.toUpperCase()); setIdEdited(true); }}
-                    className="bg-background/50 font-mono uppercase"
+                    id="sroId"
+                    placeholder="STF101"
+                    value={sroId}
+                    onChange={(e) => setSroId(e.target.value.toUpperCase())}
+                    className="bg-background/50 font-mono"
                     autoComplete="username"
                   />
-                  {!staffId && role && (
-                    <p className="text-[10px] text-muted-foreground">Leave blank to let the system generate a unique ID for your role.</p>
-                  )}
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password *</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Choose a strong password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="bg-background/50"
-                    autoComplete="new-password"
-                  />
+                  <Label htmlFor="sroPassword">Password</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="sroPassword"
+                      type={showSroPass ? "text" : "password"}
+                      placeholder="Your SRO password"
+                      value={sroPassword}
+                      onChange={(e) => setSroPassword(e.target.value)}
+                      className="bg-background/50"
+                      autoComplete="current-password"
+                    />
+                    <button type="button" onClick={() => setShowSroPass((v) => !v)}
+                      className="text-xs font-semibold text-muted-foreground hover:text-foreground whitespace-nowrap shrink-0">
+                      {showSroPass ? "HIDE" : "SHOW"}
+                    </button>
+                  </div>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirm">Confirm Password *</Label>
-                  <Input
-                    id="confirm"
-                    type="password"
-                    placeholder="Re-enter password"
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                    className="bg-background/50"
-                    autoComplete="new-password"
-                  />
-                </div>
-
-                {error && (
+                {sroAuthError && (
                   <p className="text-sm text-destructive font-medium p-2 bg-destructive/10 border border-destructive/20 rounded-md">
-                    {error}
+                    {sroAuthError}
                   </p>
                 )}
-
-                <Button type="submit" className="w-full mt-2" disabled={loading}>
-                  {loading ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating Account…</>
-                  ) : (
-                    <><UserPlus className="w-4 h-4 mr-2" /> Create Account</>
-                  )}
+                <Button type="submit" className="w-full" disabled={sroAuthLoading}>
+                  {sroAuthLoading
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Verifying…</>
+                    : <><ShieldCheck className="w-4 h-4 mr-2" /> Authenticate</>}
                 </Button>
               </form>
-            )}
-          </CardContent>
-          <CardFooter className="flex flex-col gap-1 border-t border-border/50 pt-4 pb-4 text-center">
-            <Link href="/login" className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <ChevronLeft className="w-3.5 h-3.5" /> Back to Staff Login
-            </Link>
-          </CardFooter>
-        </Card>
+            </CardContent>
+            <CardFooter className="border-t border-border/50 pt-4">
+              <Link href="/login" className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors w-full">
+                <ChevronLeft className="w-3.5 h-3.5" /> Back to Staff Login
+              </Link>
+            </CardFooter>
+          </Card>
+        ) : (
+          /* ── Step 2: Register new staff ────────────────────────────────── */
+          <Card className="border-primary/20 shadow-[0_0_30px_hsl(180_70%_50%_/_0.1)] bg-card/80 backdrop-blur-sm glow-border">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-primary" /> Register New Staff
+                </CardTitle>
+                <Badge className="text-[10px] bg-amber-500/15 text-amber-400 border-amber-500/30 font-mono shrink-0">
+                  SRO: {sroName}
+                </Badge>
+              </div>
+              <CardDescription>
+                Create a staff account on behalf of the new team member. Credentials must be shared securely.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {success ? (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-2 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 font-medium text-sm">
+                    <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" />
+                    <span>{success}</span>
+                  </div>
+                  <Button onClick={() => setSuccess("")} variant="outline" className="w-full">
+                    Register Another Staff Member
+                  </Button>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name *</Label>
+                    <Input id="name" placeholder="Dr. / Mr. / Ms. Full Name" value={name}
+                      onChange={(e) => setName(e.target.value)} className="bg-background/50" autoComplete="off" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Role *</Label>
+                    <select id="role" value={role} onChange={(e) => handleRoleChange(e.target.value)}
+                      className="w-full h-10 px-3 rounded-md border border-input bg-background/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40">
+                      <option value="" disabled>Select role…</option>
+                      {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="staffId">Staff ID <span className="text-xs text-muted-foreground font-normal">(login ID)</span></Label>
+                      {!idEdited && role && <span className="text-[10px] font-medium text-primary/70 uppercase tracking-wide">Auto-generated · editable</span>}
+                    </div>
+                    <Input id="staffId" placeholder={role ? `e.g. ${suggestStaffId(role)}` : "Select role first"}
+                      value={staffId} onChange={(e) => { setStaffId(e.target.value.toUpperCase()); setIdEdited(true); }}
+                      className="bg-background/50 font-mono uppercase" autoComplete="off" />
+                    {!staffId && role && <p className="text-[10px] text-muted-foreground">Leave blank to auto-generate.</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Initial Password *</Label>
+                    <Input id="password" type="password" placeholder="Set a temporary password" value={password}
+                      onChange={(e) => setPassword(e.target.value)} className="bg-background/50" autoComplete="new-password" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm">Confirm Password *</Label>
+                    <Input id="confirm" type="password" placeholder="Re-enter password" value={confirm}
+                      onChange={(e) => setConfirm(e.target.value)} className="bg-background/50" autoComplete="new-password" />
+                  </div>
+
+                  {error && (
+                    <p className="text-sm text-destructive font-medium p-2 bg-destructive/10 border border-destructive/20 rounded-md">{error}</p>
+                  )}
+
+                  <Button type="submit" className="w-full mt-2" disabled={loading}>
+                    {loading
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating Account…</>
+                      : <><UserPlus className="w-4 h-4 mr-2" /> Create Staff Account</>}
+                  </Button>
+                </form>
+              )}
+            </CardContent>
+            <CardFooter className="border-t border-border/50 pt-4 pb-4 flex justify-center">
+              <button onClick={() => { setSroAuthenticated(false); setSroPassword(""); setSroAuthError(""); }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                Sign out of SRO session
+              </button>
+            </CardFooter>
+          </Card>
+        )}
       </div>
     </div>
   );

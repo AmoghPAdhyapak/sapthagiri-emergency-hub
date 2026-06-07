@@ -73,6 +73,18 @@ export function AiChatPanel({ isOpen, onClose }: AiChatPanelProps) {
     });
   };
 
+  const handleClearAll = () => {
+    if (!conversations?.length) return;
+    conversations.forEach((conv) => {
+      deleteConversation.mutate({ id: conv.id }, {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListGeminiConversationsQueryKey() });
+        }
+      });
+    });
+    handleNewChat();
+  };
+
   const handleSend = async (text?: string) => {
     const messageToSend = text ?? inputValue;
     if (!messageToSend.trim() || isStreaming) return;
@@ -198,8 +210,17 @@ export function AiChatPanel({ isOpen, onClose }: AiChatPanelProps) {
             </div>
 
             {/* Recent chats */}
-            <div className="px-4 pb-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-2">Recent Consults</p>
+            <div className="px-4 pb-2 flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">Recent Consults</p>
+              {conversations && conversations.length > 0 && (
+                <button
+                  onClick={handleClearAll}
+                  className="text-[10px] text-slate-700 hover:text-red-400 transition-colors font-medium"
+                  title="Delete all chat history"
+                >
+                  Clear all
+                </button>
+              )}
             </div>
             <ScrollArea className="flex-1 px-2">
               {isLoadingConversations ? (

@@ -8,6 +8,7 @@ import {
   getStaffById,
   getAllStaff,
   updateStaffStatus,
+  deleteStaff,
   type PatientRow,
 } from "../lib/sqliteDb";
 
@@ -295,6 +296,18 @@ router.get("/staff/all", (_req, res) => {
   const staff = getAllStaff();
   const safe = staff.map(({ password: _, ...s }) => s);
   res.json(safe);
+});
+
+// DELETE /api/auth/staff/:staffId — Dean governance: hard-delete credentials (preserves encounter records)
+router.delete("/staff/:staffId", (req, res) => {
+  const idUpper = String(req.params.staffId).toUpperCase();
+  const user = getStaffById(idUpper);
+  if (!user) {
+    res.status(404).json({ error: "Staff member not found." });
+    return;
+  }
+  deleteStaff(idUpper);
+  res.json({ success: true, message: "Staff credentials permanently deleted. Patient encounter records remain structurally intact." });
 });
 
 // PATCH /api/auth/staff/:staffId/status — Dean governance: activate / deactivate

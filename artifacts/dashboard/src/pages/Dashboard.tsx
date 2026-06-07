@@ -616,6 +616,17 @@ function DeanPanel() {
     } catch { /* ignore */ } finally { setTogglingId(null); }
   };
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleDeleteAccount = async (staffId: string) => {
+    setTogglingId(staffId);
+    try {
+      await fetch(`/api/auth/staff/${staffId}`, { method: "DELETE" });
+      setStaffList((prev) => prev.filter((m) => m.staffId !== staffId));
+      setConfirmDeleteId(null);
+    } catch { /* ignore */ } finally { setTogglingId(null); }
+  };
+
   const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordInput === DEAN_PASSWORD) {
@@ -883,17 +894,38 @@ function DeanPanel() {
                         }`}>
                           {s.accountStatus}
                         </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={togglingId === s.staffId}
-                          className={`h-7 text-xs ${s.accountStatus === "active" ? "text-destructive/80 hover:text-destructive hover:bg-destructive/10" : "text-emerald-400 hover:bg-emerald-500/10"}`}
-                          onClick={() => void handleToggleStatus(s)}
-                        >
-                          {togglingId === s.staffId
-                            ? <Loader2 className="w-3 h-3 animate-spin" />
-                            : s.accountStatus === "active" ? "Deactivate" : "Activate"}
-                        </Button>
+                        {confirmDeleteId === s.staffId ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-destructive font-semibold">Delete?</span>
+                            <Button variant="ghost" size="sm" disabled={togglingId === s.staffId}
+                              className="h-6 text-[10px] text-destructive hover:bg-destructive/15"
+                              onClick={() => void handleDeleteAccount(s.staffId)}>
+                              {togglingId === s.staffId ? <Loader2 className="w-3 h-3 animate-spin" /> : "Yes"}
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-6 text-[10px] text-muted-foreground"
+                              onClick={() => setConfirmDeleteId(null)}>No</Button>
+                          </div>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={togglingId === s.staffId}
+                              className={`h-7 text-xs ${s.accountStatus === "active" ? "text-destructive/80 hover:text-destructive hover:bg-destructive/10" : "text-emerald-400 hover:bg-emerald-500/10"}`}
+                              onClick={() => void handleToggleStatus(s)}
+                            >
+                              {togglingId === s.staffId
+                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                : s.accountStatus === "active" ? "Deactivate" : "Activate"}
+                            </Button>
+                            <Button variant="ghost" size="sm"
+                              className="h-7 w-7 p-0 text-destructive/40 hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setConfirmDeleteId(s.staffId)}
+                              title="Permanently delete credentials">
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1190,6 +1222,9 @@ interface DeceasedRecord {
   assignedDoctor: string;
   timestamp: string;
   deceasedAt?: string;
+  visitReason?: string;
+  secondaryDoctorId?: string;
+  continuityLog?: Array<{ id: string; doctorName: string; hospital: string; notes: string; timestamp: string }>;
   statusHistory?: Array<{ action: string; doctorId: string; timestamp: string }>;
 }
 
@@ -1304,6 +1339,40 @@ function DeceasedRegistryPanel() {
                           <p className="text-sm text-slate-400">{rec.assignedDoctor}</p>
                         </div>
                       </div>
+                      {(rec.visitReason || (rec.secondaryDoctorId && rec.secondaryDoctorId !== "none")) && (
+                        <div className="grid grid-cols-2 gap-4 border-b border-slate-800 pb-4">
+                          {rec.visitReason && (
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600 mb-1">Chief Complaint / Visit Reason</p>
+                              <p className="text-sm text-slate-300">{rec.visitReason}</p>
+                            </div>
+                          )}
+                          {rec.secondaryDoctorId && rec.secondaryDoctorId !== "none" && (
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600 mb-1">Secondary Physician</p>
+                              <p className="text-sm text-slate-400">{rec.secondaryDoctorId}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {rec.continuityLog && rec.continuityLog.length > 0 && (
+                        <div className="border-b border-slate-800 pb-4">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600 mb-2">
+                            External Treatment History ({rec.continuityLog.length})
+                          </p>
+                          <div className="space-y-2">
+                            {rec.continuityLog.map((entry, i) => (
+                              <div key={i} className="bg-slate-900 border border-slate-800 rounded p-2.5">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[10px] font-semibold text-slate-400">{entry.doctorName} — {entry.hospital}</span>
+                                  <span className="text-[10px] font-mono text-slate-700">{new Date(entry.timestamp).toLocaleDateString()}</span>
+                                </div>
+                                <p className="text-xs text-slate-500">{entry.notes}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {rec.statusHistory && rec.statusHistory.length > 0 && (
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600 mb-2 flex items-center gap-1">

@@ -7,3 +7,5 @@
 - [Encounter cache pattern](encounter-cache.md) — panels write fresh server data to localStorage (key: HOSPITAL_DB_ENCOUNTERS_RED/YELLOW/GREEN); restore from cache when server returns empty (post-restart survival).
 - [Expandable drawer pattern](expandable-drawer.md) — all triage panels use click-to-toggle Set<string> expanded state; drawer shows symptoms, verdict, allergies, timeline, continuity logs, then action panel.
 - [Lucide icon limits](lucide-icon-limits.md) — Siren does NOT exist in 0.545.0; Skull/History/ChevronDown/ShieldAlert/AlertTriangle all confirmed present.
+- [SRO-gated registration](sro-gated-portal.md) — /admin-onboard is NOT public; requires STF### login (role=Staff Registration Officer) in Step 1 before showing the staff registration form in Step 2.
+- [Staff hard delete](staff-hard-delete.md) — DELETE /api/auth/staff/:staffId removes STAFF_ACCOUNTS row; encounters untouched. DeanPanel shows Trash2 + inline confirm (Yes/No) before calling this.
