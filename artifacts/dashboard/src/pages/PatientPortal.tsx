@@ -4,7 +4,7 @@ import { ClinicalRealismChips } from "@/components/ClinicalRealismChips";
 import {
   User, Heart, Clock, LogOut, Activity, Bot, FileText,
   Phone, Mail, Calendar, Loader2, AlertTriangle, Stethoscope,
-  CheckCircle2, Shield, Building2, Link2, Send, ChevronDown,
+  CheckCircle2, Shield, Building2, Link2, Send, ChevronDown, Menu,
 } from "lucide-react";
 import { AiChatPanel } from "@/components/AiChatPanel";
 import { Button } from "@/components/ui/button";
@@ -82,10 +82,12 @@ function PatientSidebar({
   activeView,
   onNavigate,
   patient,
+  mobileOpen,
 }: {
   activeView: PatientView;
   onNavigate: (v: PatientView) => void;
   patient: PatientUser | null;
+  mobileOpen: boolean;
 }) {
   const navItems: { view: PatientView; icon: React.ReactNode; label: string }[] = [
     { view: "profile",     icon: <User className="w-4 h-4" />,       label: "My Profile" },
@@ -96,7 +98,7 @@ function PatientSidebar({
   ];
 
   return (
-    <aside className="w-56 shrink-0 border-r border-border bg-card flex flex-col py-4 overflow-y-auto">
+    <aside className={`border-r border-border bg-card flex flex-col py-4 overflow-y-auto transition-all duration-200 ease-in-out z-50 fixed inset-y-0 left-0 w-72 ${mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"} md:relative md:inset-auto md:z-auto md:translate-x-0 md:shadow-none md:shrink-0 md:w-56`}>
       <div className="px-4 mb-5 flex items-center gap-2.5">
         <img src={logoUrl} alt="Sapthagiri NPS" className="h-9 w-9 object-contain shrink-0" />
         <div className="min-w-0">
@@ -853,6 +855,7 @@ export default function PatientPortal() {
   const [activeView, setActiveView] = useState<PatientView>("profile");
   const [encounters, setEncounters] = useState<EncounterRecord[]>([]);
   const [loadingEnc, setLoadingEnc] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [ambulanceState, setAmbulanceState] = useState<"idle" | "dispatching" | "dispatched">("idle");
   const [ambulanceMsg, setAmbulanceMsg] = useState("");
@@ -919,8 +922,15 @@ export default function PatientPortal() {
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">
-      <header className="border-b border-border bg-card px-6 py-3 flex items-center justify-between shadow-sm shrink-0">
+      <header className="border-b border-border bg-card px-4 py-3 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center gap-3">
+          <button
+            className="md:hidden p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+            onClick={() => setMobileMenuOpen(true)}
+            title="Open navigation"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <div className="bg-blue-500/20 p-2 rounded-md">
             <Heart className="w-5 h-5 text-blue-400" />
           </div>
@@ -955,7 +965,18 @@ export default function PatientPortal() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <PatientSidebar activeView={activeView} onNavigate={setActiveView} patient={patient} />
+        {mobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+        <PatientSidebar
+          activeView={activeView}
+          onNavigate={(v) => { setActiveView(v); setMobileMenuOpen(false); }}
+          patient={patient}
+          mobileOpen={mobileMenuOpen}
+        />
         <main className="flex-1 overflow-auto">
           {activeView === "profile"     && <ProfileView patient={patient} />}
           {activeView === "history"     && <HistoryView encounters={encounters} loading={loadingEnc} />}

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Bot, Activity, Brain, Users, ShieldCheck, Phone, Mail,
-  LogIn, IdCard, Loader2, User,
+  LogIn, IdCard, Loader2, User, Menu, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +33,8 @@ export default function LandingPage() {
   const [showPatPass, setShowPatPass] = useState(false);
   const [patLoading, setPatLoading] = useState(false);
   const [patError, setPatError] = useState("");
+
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const scrollToLogin = () =>
     document.getElementById("login-section")?.scrollIntoView({ behavior: "smooth" });
@@ -136,7 +138,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
 
       {/* ── Navbar ── */}
-      <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50 px-6 py-4 flex items-center justify-between">
+      <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50 px-6 py-4 flex items-center justify-between relative">
         <div className="flex items-center gap-3">
           <img src={logoUrl} alt="Sapthagiri NPS University" className="h-10 w-10 object-contain" />
           <div>
@@ -154,33 +156,63 @@ export default function LandingPage() {
             Login
           </Button>
 
-          {/* Dean Access — standalone portal */}
-          <Link
-            href="/dean-portal"
-            onClick={(e) => {
-              e.stopPropagation();
-              window.scrollTo(0, 0);
-            }}
-          >
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-400/40 font-semibold"
-              data-testid="nav-dean-access"
+          {/* Desktop: Dean Access + Staff Registration */}
+          <div className="hidden md:flex items-center gap-4">
+            <Link
+              href="/dean-portal"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.scrollTo(0, 0);
+              }}
             >
-              Dean Access
-            </Button>
-          </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-400/40 font-semibold"
+                data-testid="nav-dean-access"
+              >
+                Dean Access
+              </Button>
+            </Link>
 
-          {/* Restricted staff onboarding — institutional anchor */}
-          <div className="restricted-admin-anchor" style={{ position: "relative", top: "auto", right: "auto" }}>
-            <Link href="/admin-onboard">
-              <button className="institutional-high-visibility admin-doorway-btn">
+            <div className="restricted-admin-anchor" style={{ position: "relative", top: "auto", right: "auto" }}>
+              <Link href="/admin-onboard">
+                <button className="institutional-high-visibility admin-doorway-btn">
+                  Staff Registration
+                </button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Mobile: Hamburger toggle */}
+          <button
+            className="md:hidden p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            onClick={() => setMobileNavOpen((v) => !v)}
+            aria-label="Toggle navigation"
+          >
+            {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
+
+        {/* Mobile dropdown */}
+        {mobileNavOpen && (
+          <div className="absolute top-full left-0 right-0 bg-card border-b border-border shadow-lg px-4 py-3 flex flex-col gap-2 md:hidden">
+            <Link href="/dean-portal" onClick={() => { window.scrollTo(0, 0); setMobileNavOpen(false); }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 font-semibold"
+              >
+                Dean Access
+              </Button>
+            </Link>
+            <Link href="/admin-onboard" onClick={() => setMobileNavOpen(false)}>
+              <button className="w-full text-left text-sm px-3 py-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors font-medium">
                 Staff Registration
               </button>
             </Link>
           </div>
-        </div>
+        )}
       </nav>
 
       {/* ── Hero Section ── */}
@@ -617,6 +649,34 @@ export default function LandingPage() {
           </p>
         </div>
       </footer>
+      <ViewModeSwitch />
+    </div>
+  );
+}
+
+function ViewModeSwitch() {
+  const [isDesktop, setIsDesktop] = useState(() => localStorage.getItem("view_mode") === "desktop");
+
+  const toggle = () => {
+    const next = !isDesktop;
+    setIsDesktop(next);
+    localStorage.setItem("view_mode", next ? "desktop" : "auto");
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (meta) meta.content = next ? "width=1280" : "width=device-width, initial-scale=1.0";
+  };
+
+  return (
+    <div className="bg-background py-2 flex items-center justify-center gap-3 border-t border-border/10">
+      <span className="text-[10px] font-mono text-muted-foreground/40 uppercase tracking-widest select-none">
+        {isDesktop ? "🖥 Desktop View" : "📱 Responsive View"}
+      </span>
+      <span className="text-muted-foreground/20 text-[10px] select-none">·</span>
+      <button
+        onClick={toggle}
+        className="text-[10px] font-mono text-muted-foreground/50 hover:text-primary transition-colors"
+      >
+        {isDesktop ? "Switch to Mobile View" : "Switch to Desktop View"}
+      </button>
     </div>
   );
 }

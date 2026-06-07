@@ -579,7 +579,7 @@ export default function DeanPortalPage() {
                               </div>
                             ) : (
                               <form onSubmit={handleCreateStf} className="space-y-3">
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   <div className="space-y-1">
                                     <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Full Name</Label>
                                     <Input
@@ -602,7 +602,7 @@ export default function DeanPortalPage() {
                                     />
                                   </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   <div className="space-y-1">
                                     <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Password</Label>
                                     <div className="flex items-center bg-background/50 border border-input rounded-md focus-within:ring-1 focus-within:ring-ring h-8">

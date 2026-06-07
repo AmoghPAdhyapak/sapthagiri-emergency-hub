@@ -20,6 +20,7 @@ import {
   Activity,
   Bot,
   LogOut,
+  Menu,
   User,
   Users,
   Settings,
@@ -110,12 +111,14 @@ function Sidebar({
   onOpenChat,
   collapsed,
   onToggleCollapse,
+  mobileOpen,
 }: {
   activeView: DashView;
   onNavigate: (v: DashView) => void;
   onOpenChat: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  mobileOpen: boolean;
 }) {
   const queueItems: { view: DashView; icon: React.ReactNode; label: string; activeColor: string; dotColor: string; title: string }[] = [
     {
@@ -156,9 +159,7 @@ function Sidebar({
 
   return (
     <aside
-      className={`shrink-0 border-r border-border bg-card flex flex-col py-4 overflow-y-auto overflow-x-hidden transition-[width] duration-200 ease-in-out ${
-        collapsed ? "w-[52px]" : "w-56"
-      }`}
+      className={`border-r border-border bg-card flex flex-col py-4 overflow-y-auto overflow-x-hidden transition-all duration-200 ease-in-out z-50 fixed inset-y-0 left-0 w-72 ${mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"} md:relative md:inset-auto md:z-auto md:translate-x-0 md:shadow-none md:shrink-0 ${collapsed ? "md:w-[52px]" : "md:w-56"}`}
     >
       {/* Logo + brand + collapse toggle */}
       <div className={`px-2 mb-5 flex items-center ${collapsed ? "justify-center" : "gap-2 pl-3"}`}>
@@ -1318,6 +1319,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<UserData | null>(null);
   const [activeView, setActiveView] = useState<DashView>("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("sapthagiri_user");
@@ -1357,6 +1359,13 @@ export default function Dashboard() {
       {/* Header */}
       <header className="border-b border-border bg-card px-4 py-3 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center gap-3">
+          <button
+            className="md:hidden p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+            onClick={() => setMobileMenuOpen(true)}
+            title="Open navigation"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <button
             onClick={() => setLocation("/")}
             title="Back to Home"
@@ -1413,12 +1422,19 @@ export default function Dashboard() {
 
       {/* Body: Sidebar + Main */}
       <div className="flex flex-1 overflow-hidden">
+        {mobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
         <Sidebar
           activeView={activeView}
-          onNavigate={setActiveView}
-          onOpenChat={() => setIsChatOpen(true)}
+          onNavigate={(v) => { setActiveView(v); setMobileMenuOpen(false); }}
+          onOpenChat={() => { setIsChatOpen(true); setMobileMenuOpen(false); }}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+          mobileOpen={mobileMenuOpen}
         />
         <main className="flex-1 overflow-auto">
           {activeView === "dashboard"   && <LiveReportsPanel />}
