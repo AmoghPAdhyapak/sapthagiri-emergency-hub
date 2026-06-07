@@ -25,27 +25,24 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    try {
-      return (localStorage.getItem("sapthagiri_theme") as Theme) ?? "dark";
-    } catch {
-      return "dark";
-    }
-  });
+  // Registrar-stable: locked to dark mode for live presentation build.
+  // Internal theme architecture preserved for future re-enablement.
+  const [theme] = useState<Theme>("dark");
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-      root.classList.remove("light");
-    } else {
-      root.classList.remove("dark");
-      root.classList.add("light");
-    }
-    try { localStorage.setItem("sapthagiri_theme", theme); } catch { /* ignore */ }
+    root.classList.add("dark");
+    root.classList.remove("light");
+    root.style.setProperty("--bg-primary", "#121214");
+    root.style.setProperty("--bg-secondary", "#1a1a1e");
+    root.style.setProperty("--text-main", "#f3f4f6");
+    root.style.setProperty("--text-muted", "#9ca3af");
+    root.style.setProperty("--border-color", "#2d2d34");
   }, [theme]);
 
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const toggleTheme = () => {
+    // Theme switching disabled for registrar demo stability.
+  };
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

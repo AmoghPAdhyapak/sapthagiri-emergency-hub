@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Bot, Activity, Brain, Users, ShieldCheck, Phone, Mail,
-  Sun, Moon, KeyRound, LogIn, IdCard, Loader2, User,
+  LogIn, IdCard, Loader2, User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import logoUrl from "@/assets/logo.png";
 import { useAuth } from "@/App";
-import { useTheme } from "@/App";
 
 type LoginTab = "staff" | "patient";
 type PatientMode = "phone" | "name";
@@ -18,7 +17,6 @@ type PatientMode = "phone" | "name";
 export default function LandingPage() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
-  const { theme, toggleTheme } = useTheme();
 
   // ── Login state ──────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<LoginTab>("staff");
@@ -147,29 +145,23 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
+        <div className="flex items-center gap-4">
+          <span className="system-status-indicator hidden md:inline">
+            ● REGISTRAR COMPLIANT ENVIRONMENT (DARK BUILD)
+          </span>
 
           <Button variant="ghost" size="sm" onClick={scrollToLogin} data-testid="nav-login-button">
             Login
           </Button>
 
-          {/* Restricted admin onboarding — subtle, not prominent */}
-          <Link
-            href="/admin-onboard"
-            className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors px-1"
-            title="Staff Administration Onboarding"
-          >
-            <KeyRound className="w-3 h-3" />
-            <span className="hidden sm:inline">Admin</span>
-          </Link>
+          {/* Restricted staff onboarding — institutional anchor */}
+          <div className="restricted-admin-anchor" style={{ position: "relative", top: "auto", right: "auto" }}>
+            <Link href="/admin-onboard">
+              <button className="institutional-high-visibility admin-doorway-btn">
+                Staff Registration
+              </button>
+            </Link>
+          </div>
         </div>
       </nav>
 
@@ -331,7 +323,7 @@ export default function LandingPage() {
                   )}
 
                   <Button type="submit" className="w-full" disabled={staffLoading} data-testid="button-login">
-                    {staffLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Signing in…</> : <><LogIn className="w-4 h-4 mr-2" /> Login Securely</>}
+                    {staffLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Signing in…</> : <><LogIn className="w-4 h-4 mr-2" /> Login</>}
                   </Button>
                 </form>
 
@@ -349,7 +341,7 @@ export default function LandingPage() {
                 <p className="text-center text-xs text-muted-foreground/50 pt-1">
                   New staff?{" "}
                   <Link href="/admin-onboard" className="text-primary/60 hover:text-primary transition-colors font-medium">
-                    Request access via Admin Onboarding
+                    Staff Registration
                   </Link>
                 </p>
               </CardContent>

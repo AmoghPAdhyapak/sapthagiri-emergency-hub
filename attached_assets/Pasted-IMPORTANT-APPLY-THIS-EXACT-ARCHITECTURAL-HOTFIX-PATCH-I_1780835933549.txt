@@ -1,0 +1,261 @@
+IMPORTANT — APPLY THIS EXACT ARCHITECTURAL HOTFIX PATCH INTO THE EXISTING PROJECT
+
+Do NOT redesign the frontend.
+Do NOT replace the existing architecture.
+Do NOT remove:
+
+* AuthProvider
+* ThemeProvider
+* continuity timeline systems
+* onboarding systems
+* image upload systems
+* SQLite persistence synchronization
+* authentication lifecycle routing
+
+Carefully integrate the following code structures directly into:
+
+* artifacts/dashboard/src/App.tsx
+* artifacts/dashboard/src/index.css
+
+===========================================================
+
+1. FORCE REGISTRAR-STABLE DARK MODE
+   ===========================================================
+
+Inside ThemeProvider():
+
+```tsx
+const [theme] = useState<"dark" | "light">("dark");
+
+const toggleTheme = () => {
+  console.warn("Theme toggle switched off for live registrar demo stability.");
+};
+
+useEffect(() => {
+  const rootElement = document.documentElement;
+
+  rootElement.style.setProperty("--bg-primary", "#121214");
+  rootElement.style.setProperty("--bg-secondary", "#1a1a1e");
+  rootElement.style.setProperty("--text-main", "#f3f4f6");
+  rootElement.style.setProperty("--text-muted", "#9ca3af");
+  rootElement.style.setProperty("--border-color", "#2d2d34");
+}, [theme]);
+```
+
+IMPORTANT:
+
+* disable/remove public light-mode switching
+* preserve internal future theme architecture
+* keep stable registrar-safe dark mode only
+
+===========================================================
+2. MAIN NAVBAR STABILITY PATCH
+==============================
+
+Inside MainLayoutAppRouter():
+
+```tsx
+<div className="nav-controls">
+  <span className="system-status-indicator">
+    ● REGISTRAR COMPLIANT ENVIRONMENT (DARK BUILD)
+  </span>
+</div>
+```
+
+Remove public theme toggle controls from the navbar.
+
+===========================================================
+3. LANDING PAGE AUTHENTICATION STRUCTURE
+========================================
+
+Public landing page must contain ONLY:
+
+* Patient Login
+* Staff Login
+
+Patient registration must remain ONLY inside the internal staff intake workflow.
+
+===========================================================
+4. TOP-RIGHT RESTRICTED STAFF REGISTRATION ENTRY
+================================================
+
+Inside PublicAuthenticationLayout():
+
+REPLACE:
+
+```tsx
+⚠️ Staff Registration (Restricted Onboarding Access Point)
+```
+
+WITH ONLY:
+
+```tsx
+Staff Registration
+```
+
+FINAL REQUIRED CODE:
+
+```tsx
+<div className="restricted-admin-anchor">
+  <button
+    className="admin-doorway-btn institutional-high-visibility"
+    onClick={() => setCurrentView("ADMIN_ONBOARD")}
+  >
+    Staff Registration
+  </button>
+</div>
+```
+
+IMPORTANT:
+Keep:
+
+* onboarding routing
+* restricted access behavior
+* admin logic
+* authentication isolation
+
+ONLY simplify visible wording.
+
+===========================================================
+5. MAIN LOGIN BUTTON CLEANUP
+============================
+
+REPLACE:
+
+```tsx
+Login to Secure Connection
+```
+
+WITH ONLY:
+
+```tsx
+Login
+```
+
+FINAL REQUIRED CODE:
+
+```tsx
+<button type="submit" className="submit-auth-btn">
+  Login
+</button>
+```
+
+Do NOT modify:
+
+* login handlers
+* backend verification
+* session persistence
+* role routing
+* authentication lifecycle
+
+===========================================================
+6. MEDICAL IMAGE ATTACHMENT PERSISTENCE
+=======================================
+
+Preserve the Base64 image persistence architecture exactly.
+
+Maintain behavior similar to:
+
+```tsx
+const dataPipelineReader = new FileReader();
+
+dataPipelineReader.onloadend = () => {
+  const base64DataPayloadString =
+    dataPipelineReader.result as string;
+
+  const adjustedRecord: EncounterRecord = {
+    ...record,
+    imageAttachment: base64DataPayloadString,
+    crossHospitalContinuityLogs: [
+      ...record.crossHospitalContinuityLogs,
+      {
+        id: `NOTE-IMG-${Date.now()}`,
+        doctorName: "System Imaging Unit",
+        notes: `Uploaded diagnostic medical image artifact`,
+        timestamp: new Date().toISOString(),
+        imageAttachment: base64DataPayloadString,
+      },
+    ],
+  };
+
+  onUpdateRecord(adjustedRecord);
+};
+
+dataPipelineReader.readAsDataURL(targetedFile);
+```
+
+IMPORTANT:
+Ensure:
+
+* uploaded images synchronize into patient records
+* continuity timeline logs retain image references
+* image previews render correctly
+* SQLite-compatible TEXT payload behavior remains intact
+
+===========================================================
+7. CSS HIGH-VISIBILITY PATCH
+============================
+
+Inside:
+artifacts/dashboard/src/index.css
+
+Ensure these styles exist:
+
+```css
+.restricted-admin-anchor {
+  position: absolute;
+  top: 1.5rem;
+  right: 2rem;
+  z-index: 999;
+}
+
+.institutional-high-visibility {
+  background-color: #1e1b4b !important;
+  border: 1px solid #4f46e5 !important;
+  color: #f3f4f6 !important;
+  padding: 0.6rem 1.2rem !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  transition: all 0.15s ease-in-out;
+}
+
+.institutional-high-visibility:hover {
+  background-color: #312e81 !important;
+  border-color: #6366f1 !important;
+}
+
+.system-status-indicator {
+  color: #10b981;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+```
+
+===========================================================
+FINAL DIRECTIVE
+===============
+
+This is a REGISTRAR PRESENTATION STABILITY PATCH.
+
+Priority:
+
+* institutional realism
+* stable healthcare authentication hierarchy
+* persistence continuity
+* registrar-safe dark-mode deployment
+* onboarding isolation
+* professional medical UI clarity
+
+NOT:
+
+* frontend redesign
+* risky CSS rewrites
+* backend replacement
+* experimental architecture mutation
+
+Carefully merge these code structures directly into the existing project while preserving all current working systems.

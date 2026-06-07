@@ -297,3 +297,37 @@
     inset: -1px;
   }
 }
+/* ── Registrar Presentation Stability Patch ─────────────────────────── */
+
+.restricted-admin-anchor {
+  position: absolute;
+  top: 1.5rem;
+  right: 2rem;
+  z-index: 999;
+}
+
+.institutional-high-visibility {
+  background-color: #1e1b4b !important;
+  border: 1px solid #4f46e5 !important;
+  color: #f3f4f6 !important;
+  padding: 0.6rem 1.2rem !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  transition: all 0.15s ease-in-out;
+}
+
+.institutional-high-visibility:hover {
+  background-color: #312e81 !important;
+  border-color: #6366f1 !important;
+}
+
+.system-status-indicator {
+  color: #10b981;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
