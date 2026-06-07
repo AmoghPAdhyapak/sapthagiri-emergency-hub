@@ -1,0 +1,119 @@
+I want the COMPLETE project source code and deployment structure exported properly so the SAME healthcare application can run identically on another platform/environment outside Replit.
+
+IMPORTANT:
+Do NOT give only API references or partial snippets.
+
+I need:
+
+* full frontend code
+* full backend code
+* routing structure
+* database structure
+* environment configuration
+* dependencies
+* deployment configuration
+* all required assets/components
+* package configuration
+* build configuration
+* persistence configuration
+* auth logic
+* AI integration code
+* OTP integration code
+* Dean governance system
+* dashboard systems
+* responsive systems
+
+===========================================================
+REQUIRED EXPORT DETAILS
+=======================
+
+Please provide or generate:
+
+1. COMPLETE PROJECT FILE STRUCTURE
+
+Including:
+
+* frontend folders
+* backend folders
+* components
+* pages
+* database files
+* configs
+* styles
+* utility files
+
+2. ALL REQUIRED SOURCE CODE FILES
+
+Including:
+
+* App.tsx
+* routing files
+* dashboard files
+* DeanPortalPage
+* LandingPage
+* StaffSignup
+* AI assistant logic
+* auth logic
+* SQLite integration
+* API handlers
+* persistence logic
+
+3. FULL package.json DEPENDENCIES
+
+Including:
+
+* exact packages
+* versions
+* scripts
+* build commands
+
+4. ENVIRONMENT VARIABLES REQUIRED
+
+Including:
+
+* OTP keys
+* AI keys
+* deployment variables
+* database variables
+
+5. DATABASE INITIALIZATION STRUCTURE
+
+Including:
+
+* SQLite schema
+* tables
+* persistence models
+* relationships
+
+6. DEPLOYMENT REQUIREMENTS
+
+So the SAME application can run correctly on:
+
+* another cloud IDE
+* VPS
+* Vercel
+* Railway
+* Render
+* local machine
+* Docker if applicable
+
+7. EXACT RUN COMMANDS
+
+Including:
+
+* install commands
+* dev commands
+* production build commands
+* start commands
+
+===========================================================
+IMPORTANT
+=========
+
+Do NOT summarize the project.
+
+Do NOT give partial code snippets.
+
+Do NOT provide only APIs.
+
+I need the COMPLETE runnable project architecture and source structure required to reproduce the SAME application outside Replit without losing functionality.

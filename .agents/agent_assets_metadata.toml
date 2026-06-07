@@ -12,3 +12,9 @@ id = "DL0LHvgFI-13Dake2hd4z"
 uri = "file://DeanPortalPage.txt"
 type = "text"
 title = "DeanPortalPage.tsx — Full Dean Access Portal Code"
+
+[[outputs]]
+id = "Uzsk1EMZBBuYy3L3F35ih"
+uri = "file://DEPLOYMENT_GUIDE.md"
+type = "text"
+title = "Sapthagiri NPS — Complete Deployment Guide"
