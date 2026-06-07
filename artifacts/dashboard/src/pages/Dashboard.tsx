@@ -810,6 +810,32 @@ function PatientRegistrationPanel() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; patientId?: string; name?: string; error?: string } | null>(null);
 
+  // ── Institutional OTP Verification State Machine ─────────────────────────
+  const [generatedOtpCode, setGeneratedOtpCode] = useState("");
+  const [enteredOtpCode, setEnteredOtpCode] = useState("");
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpErrorMessage, setOtpErrorMessage] = useState("");
+
+  const handleGenerateOtp = () => {
+    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtpCode(generatedOtp);
+    setOtpVerified(false);
+    setEnteredOtpCode("");
+    setOtpErrorMessage("");
+    // Mock OTP — displayed in browser console for prototype verification
+    console.log("Prototype OTP Verification Code:", generatedOtp);
+  };
+
+  const handleVerifyOtp = () => {
+    if (enteredOtpCode === generatedOtpCode) {
+      setOtpVerified(true);
+      setOtpErrorMessage("");
+    } else {
+      setOtpVerified(false);
+      setOtpErrorMessage("Incorrect OTP. Please check the console and try again.");
+    }
+  };
+
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setResult(null);
@@ -819,6 +845,11 @@ function PatientRegistrationPanel() {
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim() || !form.password) {
       setResult({ success: false, error: "Full name, phone number, and password are required." });
+      return;
+    }
+    // OTP verification gate — must pass BEFORE any SQLite commit or auth activation
+    if (!otpVerified) {
+      setResult({ success: false, error: "OTP verification required before registration." });
       return;
     }
     setLoading(true);
@@ -837,6 +868,10 @@ function PatientRegistrationPanel() {
       } else {
         setResult({ success: true, patientId: data.patientId, name: data.name });
         setForm({ name: "", phone: "", age: "", email: "", password: "", allergies: "" });
+        setGeneratedOtpCode("");
+        setEnteredOtpCode("");
+        setOtpVerified(false);
+        setOtpErrorMessage("");
       }
     } catch {
       setResult({ success: false, error: "Network error. Please try again." });
@@ -896,6 +931,56 @@ function PatientRegistrationPanel() {
               <Input id="reg-allergies" placeholder="e.g. Penicillin, NSAIDs, Latex" value={form.allergies}
                 onChange={(e) => handleChange("allergies", e.target.value)} className="bg-background/50" />
               <p className="text-[10px] text-muted-foreground/60">Shared with triage staff to prevent adverse drug reactions. Leave blank if none.</p>
+            </div>
+
+            {/* ── Institutional OTP Verification Pipeline ── */}
+            <div className="otp-verification-architecture-subplate">
+              <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                Institutional Verification Pipeline
+              </h5>
+
+              <button
+                type="button"
+                className="otp-action-trigger-btn"
+                onClick={handleGenerateOtp}
+              >
+                Generate OTP
+              </button>
+
+              {generatedOtpCode && (
+                <p className="text-[10px] text-muted-foreground/60 font-mono">
+                  OTP generated — check browser console (F12) for the code.
+                </p>
+              )}
+
+              <Input
+                type="text"
+                maxLength={6}
+                placeholder="Enter 6-digit OTP"
+                value={enteredOtpCode}
+                onChange={(e) => setEnteredOtpCode(e.target.value.replace(/\D/g, ""))}
+                className="bg-background/50 font-mono tracking-widest text-center text-lg"
+                disabled={!generatedOtpCode}
+              />
+
+              <button
+                type="button"
+                className="otp-validation-commit-btn"
+                onClick={handleVerifyOtp}
+                disabled={!generatedOtpCode || enteredOtpCode.length !== 6}
+              >
+                Verify OTP
+              </button>
+
+              {otpVerified && (
+                <div className="otp-verification-success-alert-badge">
+                  ✓ Identity Confirmed — Registration Unlocked
+                </div>
+              )}
+
+              {otpErrorMessage && !otpVerified && (
+                <p className="text-xs text-destructive font-medium">{otpErrorMessage}</p>
+              )}
             </div>
 
             {result && (

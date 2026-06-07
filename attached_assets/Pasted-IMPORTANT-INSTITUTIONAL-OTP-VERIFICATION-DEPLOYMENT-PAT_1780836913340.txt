@@ -1,0 +1,293 @@
+IMPORTANT — INSTITUTIONAL OTP VERIFICATION DEPLOYMENT PATCH
+
+Carefully integrate the following architecture into the EXISTING healthcare ecosystem WITHOUT breaking:
+
+* SQLite persistence
+* authentication lifecycle
+* patient/staff synchronization
+* onboarding routing
+* continuity timelines
+* image persistence
+* session management
+* registrar-safe dark-mode stability
+
+Do NOT redesign the frontend.
+Do NOT replace the backend architecture.
+Do NOT remove:
+
+* AuthProvider
+* ThemeProvider
+* onboarding systems
+* continuity logs
+* medical image systems
+* intake routing
+* authentication structures
+
+Carefully integrate the following code structures directly into:
+
+* artifacts/dashboard/src/App.tsx
+* artifacts/dashboard/src/index.css
+
+===========================================================
+
+1. CONDITIONAL PATIENT INTAKE MODULE INTEGRATION
+   ===========================================================
+
+Inside:
+AuthenticatedDashboardView()
+
+Add intake visibility controller state:
+
+```tsx id="bb4ksv"
+const [showIntakeModule, setShowIntakeModule] =
+  useState<boolean>(false);
+```
+
+Replace the old placeholder intake button behavior with:
+
+```tsx id="whm18x"
+<button
+  className="intake-trigger-btn"
+  onClick={() =>
+    setShowIntakeModule(!showIntakeModule)
+  }
+>
+  {showIntakeModule
+    ? "Close Intake Desk"
+    : "+ Perform Patient Intake"}
+</button>
+```
+
+Add conditional rendering logic:
+
+```tsx id="rjtvx8"
+{showIntakeModule && user?.role !== "patient" ? (
+  <InstitutionalPatientIntakeModule
+    onCompleteClose={() =>
+      setShowIntakeModule(false)
+    }
+  />
+) : (
+  // existing medical record workspace
+)}
+```
+
+===========================================================
+2. INSTITUTIONAL OTP VERIFICATION STATE MACHINE
+===============================================
+
+Inside:
+InstitutionalPatientIntakeModule()
+
+Integrate REQUIRED state structure:
+
+```tsx id="t1n2eo"
+const [generatedOtpCode, setGeneratedOtpCode] =
+  useState("");
+
+const [enteredOtpCode, setEnteredOtpCode] =
+  useState("");
+
+const [otpVerified, setOtpVerified] =
+  useState(false);
+
+const [errorMessage, setErrorMessage] =
+  useState("");
+```
+
+===========================================================
+3. OTP GENERATION SYSTEM
+========================
+
+Integrate OTP generation logic:
+
+```tsx id="o4f5db"
+const generatedOtp =
+  Math.floor(
+    100000 + Math.random() * 900000
+  ).toString();
+
+setGeneratedOtpCode(generatedOtp);
+
+console.log(
+  "Prototype OTP Verification Code:",
+  generatedOtp
+);
+```
+
+IMPORTANT:
+
+* keep this as MOCK OTP architecture
+* do NOT integrate Twilio/Fast2SMS
+* do NOT add unstable telecom APIs
+
+===========================================================
+4. OTP VERIFICATION GATE
+========================
+
+Integrate verification logic:
+
+```tsx id="znj3yf"
+if (enteredOtpCode === generatedOtpCode) {
+  setOtpVerified(true);
+  setErrorMessage("");
+} else {
+  setOtpVerified(false);
+}
+```
+
+===========================================================
+5. ACCOUNT CREATION SECURITY LOCK
+=================================
+
+Inside patient registration submit handler:
+
+```tsx id="q9x7ua"
+if (!otpVerified) {
+  setErrorMessage(
+    "OTP verification required before registration."
+  );
+  return;
+}
+```
+
+IMPORTANT:
+Patient account creation MUST NOT proceed unless:
+
+```tsx id="nd3xw4"
+otpVerified === true
+```
+
+This verification gate must execute BEFORE:
+
+* SQLite commits
+* patient onboarding
+* authentication activation
+* lifecycle initialization
+
+===========================================================
+6. PATIENT INTAKE FORM UI ADDITIONS
+===================================
+
+Inside Patient Intake Form:
+Add:
+
+* Generate OTP button
+* OTP input field
+* Verify OTP button
+* OTP verification success indicator
+* error alert label
+
+Maintain:
+
+* existing dark-mode architecture
+* institutional healthcare styling
+* current layout structure
+
+Do NOT redesign the page.
+
+===========================================================
+7. OTP UI STRUCTURE
+===================
+
+Integrate UI similar to:
+
+```tsx id="rq6mwh"
+<div className="otp-verification-architecture-subplate">
+  <h5>Institutional Verification Pipeline</h5>
+
+  <button
+    type="button"
+    className="otp-action-trigger-btn"
+    onClick={handleGenerateOtp}
+  >
+    Generate OTP
+  </button>
+
+  <input
+    type="text"
+    maxLength={6}
+    value={enteredOtpCode}
+    onChange={(e) =>
+      setEnteredOtpCode(e.target.value)
+    }
+  />
+
+  <button
+    type="button"
+    className="otp-validation-commit-btn"
+    onClick={handleVerifyOtp}
+  >
+    Verify OTP
+  </button>
+
+  {otpVerified && (
+    <div className="otp-verification-success-alert-badge">
+      ✓ Identity Confirmed
+    </div>
+  )}
+</div>
+```
+
+===========================================================
+8. REQUIRED CSS PATCH
+=====================
+
+Inside:
+artifacts/dashboard/src/index.css
+
+Integrate styling similar to:
+
+```css id="2y0lgi"
+.otp-verification-architecture-subplate {
+  background-color: var(--bg-primary);
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  padding: 1.5rem;
+}
+
+.otp-action-trigger-btn {
+  background-color: #1e1b4b;
+  border: 1px solid #4f46e5;
+  color: #f3f4f6;
+}
+
+.otp-validation-commit-btn {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.otp-verification-success-alert-badge {
+  background-color: rgba(16, 185, 129, 0.1);
+  border: 1px solid #10b981;
+  color: #10b981;
+}
+
+.commit-intake-final-btn.locked-disabled {
+  cursor: not-allowed;
+}
+```
+
+===========================================================
+FINAL DIRECTIVE
+===============
+
+This is an INSTITUTIONAL PATIENT VERIFICATION DEPLOYMENT PATCH.
+
+Priority:
+
+* onboarding realism
+* controlled intake workflow
+* fake registration prevention
+* registrar-safe deployment stability
+* authentication integrity
+* healthcare professionalism
+
+NOT:
+
+* telecom production APIs
+* risky dependency expansion
+* frontend redesign
+* backend replacement
+
+Carefully merge these code structures directly into the existing application while preserving all current systems and workflows.
