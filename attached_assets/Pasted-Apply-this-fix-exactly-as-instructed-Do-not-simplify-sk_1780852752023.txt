@@ -1,0 +1,117 @@
+Apply this fix exactly as instructed. Do not simplify, skip, or restructure anything. Modify the existing codebase directly and preserve current architecture.
+
+ APPLY EXACT SPA SCROLL RESTORATION FIX
+
+ROOT CAUSE CONFIRMED:
+Wouter route transitions are preserving browser scroll position during SPA navigation. When switching from LandingPage → DeanPortalPage, the viewport baseline is retained, creating the illusion that the page scrolls downward into the login section.
+
+DO NOT REWRITE THE DEAN ARCHITECTURE.
+DO NOT CHANGE ROUTING STRUCTURE.
+ONLY APPLY THE FOLLOWING PATCHES.
+
+---------------------------------------------------
+PATCH 1 — CREATE GLOBAL SCROLL RESTORER
+---------------------------------------------------
+
+CREATE FILE:
+src/components/ScrollToTop.tsx
+
+PASTE:
+
+import { useEffect } from "react";
+import { useLocation } from "wouter";
+
+export default function ScrollToTop() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "instant" as ScrollBehavior,
+    });
+  }, [location]);
+
+  return null;
+}
+
+---------------------------------------------------
+PATCH 2 — INJECT INTO App.tsx
+---------------------------------------------------
+
+IMPORT:
+
+import ScrollToTop from "@/components/ScrollToTop";
+
+THEN PLACE:
+
+<ScrollToTop />
+
+DIRECTLY INSIDE THE ROUTER,
+ABOVE ALL ROUTES.
+
+EXAMPLE STRUCTURE:
+
+function App() {
+  return (
+    <>
+      <ScrollToTop />
+
+      <Switch>
+        <Route path="/" component={LandingPage} />
+        <Route path="/dean-portal" component={DeanPortalPage} />
+      </Switch>
+    </>
+  );
+}
+
+---------------------------------------------------
+PATCH 3 — HARDEN THE DEAN ACCESS BUTTON
+---------------------------------------------------
+
+FIND:
+
+<Link href="/dean-portal">
+
+REPLACE WITH:
+
+<Link
+  href="/dean-portal"
+  onClick={(e) => {
+    e.stopPropagation();
+    window.scrollTo(0, 0);
+  }}
+>
+
+---------------------------------------------------
+PATCH 4 — PREVENT SMOOTH SCROLL BLEED
+---------------------------------------------------
+
+CHECK global.css OR index.css
+
+IF THIS EXISTS:
+
+html {
+  scroll-behavior: smooth;
+}
+
+REPLACE WITH:
+
+html {
+  scroll-behavior: auto;
+}
+
+---------------------------------------------------
+EXPECTED RESULT
+---------------------------------------------------
+
+AFTER APPLYING:
+
+- Landing page no longer visually slides downward
+- Dean portal opens at true viewport top
+- SPA transition becomes stable
+- No fake scroll illusion during route swap
+- Dean architecture remains untouched
+
+THIS IS A VIEWPORT STATE RETENTION FIX,
+NOT A ROUTING FIX.

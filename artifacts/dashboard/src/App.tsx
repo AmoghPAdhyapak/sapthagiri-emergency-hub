@@ -11,6 +11,7 @@ import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import StaffSignupPage from "@/pages/StaffSignupPage";
 import DeanPortalPage from "@/pages/DeanPortalPage";
+import ScrollToTop from "@/components/ScrollToTop";
 
 const queryClient = new QueryClient();
 
@@ -181,7 +182,9 @@ function PatientGuard({ children }: { children: ReactNode }) {
 
 function Router() {
   return (
-    <Switch>
+    <>
+      <ScrollToTop />
+      <Switch>
       <Route path="/" component={LandingPage} />
       {/* /login kept for backward compatibility */}
       <Route path="/login" component={LoginPage} />
@@ -201,7 +204,8 @@ function Router() {
         </PatientGuard>
       </Route>
       <Route component={NotFound} />
-    </Switch>
+      </Switch>
+    </>
   );
 }
 

@@ -155,7 +155,13 @@ export default function LandingPage() {
           </Button>
 
           {/* Dean Access — standalone portal */}
-          <Link href="/dean-portal">
+          <Link
+            href="/dean-portal"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.scrollTo(0, 0);
+            }}
+          >
             <Button
               variant="ghost"
               size="sm"
