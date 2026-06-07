@@ -154,20 +154,17 @@ export default function LandingPage() {
             Login
           </Button>
 
-          {/* Dean Access — public entry point */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              localStorage.setItem("sapthagiri_dean_intent", "1");
-              setActiveTab("staff");
-              scrollToLogin();
-            }}
-            className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-400/40 font-semibold"
-            data-testid="nav-dean-access"
-          >
-            Dean Access
-          </Button>
+          {/* Dean Access — standalone portal */}
+          <Link href="/dean-portal">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-400/40 font-semibold"
+              data-testid="nav-dean-access"
+            >
+              Dean Access
+            </Button>
+          </Link>
 
           {/* Restricted staff onboarding — institutional anchor */}
           <div className="restricted-admin-anchor" style={{ position: "relative", top: "auto", right: "auto" }}>

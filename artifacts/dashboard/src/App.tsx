@@ -10,6 +10,7 @@ import PatientPortal from "@/pages/PatientPortal";
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import StaffSignupPage from "@/pages/StaffSignupPage";
+import DeanPortalPage from "@/pages/DeanPortalPage";
 
 const queryClient = new QueryClient();
 
@@ -186,6 +187,7 @@ function Router() {
       <Route path="/login" component={LoginPage} />
       {/* Staff onboarding at restricted admin path — not linked publicly */}
       <Route path="/admin-onboard" component={StaffSignupPage} />
+      <Route path="/dean-portal" component={DeanPortalPage} />
       {/* Legacy staff signup alias */}
       <Route path="/staff/signup" component={StaffSignupPage} />
       <Route path="/dashboard">
