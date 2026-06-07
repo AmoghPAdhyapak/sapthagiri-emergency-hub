@@ -9,15 +9,58 @@ import Dashboard from "@/pages/Dashboard";
 import PatientPortal from "@/pages/PatientPortal";
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
-import SignUpPage from "@/pages/SignUpPage";
 import StaffSignupPage from "@/pages/StaffSignupPage";
 
 const queryClient = new QueryClient();
 
+// ── Theme Context — Adaptive Dark/Light Palette ──────────────────────────────
+
+type Theme = "dark" | "light";
+
+interface ThemeContextType {
+  theme: Theme;
+  toggleTheme: () => void;
+}
+
+const ThemeContext = createContext<ThemeContextType | null>(null);
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      return (localStorage.getItem("sapthagiri_theme") as Theme) ?? "dark";
+    } catch {
+      return "dark";
+    }
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+      root.classList.remove("light");
+    } else {
+      root.classList.remove("dark");
+      root.classList.add("light");
+    }
+    try { localStorage.setItem("sapthagiri_theme", theme); } catch { /* ignore */ }
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+export function useTheme() {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error("useTheme requires ThemeProvider");
+  return ctx;
+}
+
 // ── Auth Context — Persistent Session Rehydration ───────────────────────────
-// On every page load the AuthProvider verifies the cached localStorage session
-// against the backend SQLite store via POST /api/auth/verify.
-// If verification fails the stale session is cleared and the user is sent to /login.
 
 export interface UserProfile {
   patientId?: string;
@@ -47,10 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function hydrateAndVerifySession() {
       const cachedUserStr = localStorage.getItem("sapthagiri_user");
-      if (!cachedUserStr) {
-        setLoading(false);
-        return;
-      }
+      if (!cachedUserStr) { setLoading(false); return; }
 
       try {
         const cachedUser = JSON.parse(cachedUserStr) as UserProfile;
@@ -58,9 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ? cachedUser.patientId
           : cachedUser.staffId;
 
-        if (!lookupId) {
-          throw new Error("Malformed session profile.");
-        }
+        if (!lookupId) throw new Error("Malformed session profile.");
 
         const response = await fetch("/api/auth/verify", {
           method: "POST",
@@ -68,9 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ role: cachedUser.role, id: lookupId }),
         });
 
-        if (!response.ok) {
-          throw new Error("Backend verification failed.");
-        }
+        if (!response.ok) throw new Error("Backend verification failed.");
 
         const data = await response.json() as { valid: boolean; user?: UserProfile };
         if (data.valid && data.user) {
@@ -113,20 +149,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth requires an active AuthProvider.");
-  }
+  if (!context) throw new Error("useAuth requires an active AuthProvider.");
   return context;
 }
 
-// ── Route Guards (auth-context-aware) ───────────────────────────────────────
+// ── Route Guards ─────────────────────────────────────────────────────────────
 
 function StaffGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
   useEffect(() => {
     if (loading) return;
-    if (!user) { setLocation("/login"); return; }
+    if (!user) { setLocation("/"); return; }
     if (user.role === "patient") { setLocation("/patient"); return; }
   }, [user, loading, setLocation]);
   if (loading) return null;
@@ -138,21 +172,24 @@ function PatientGuard({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
   useEffect(() => {
     if (loading) return;
-    if (!user) { setLocation("/login"); return; }
+    if (!user) { setLocation("/"); return; }
     if (user.role === "staff" || !user.role) { setLocation("/dashboard"); return; }
   }, [user, loading, setLocation]);
   if (loading) return null;
   return <>{children}</>;
 }
 
-// ── Router ──────────────────────────────────────────────────────────────────
+// ── Router ────────────────────────────────────────────────────────────────────
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={LandingPage} />
+      {/* /login kept for backward compatibility */}
       <Route path="/login" component={LoginPage} />
-      <Route path="/signup" component={SignUpPage} />
+      {/* Staff onboarding at restricted admin path — not linked publicly */}
+      <Route path="/admin-onboard" component={StaffSignupPage} />
+      {/* Legacy staff signup alias */}
       <Route path="/staff/signup" component={StaffSignupPage} />
       <Route path="/dashboard">
         <StaffGuard>
@@ -169,15 +206,13 @@ function Router() {
   );
 }
 
-// ── Inner App — reads AuthContext, renders routing ───────────────────────────
+// ── Inner App ────────────────────────────────────────────────────────────────
 
 function AppInner() {
   const [splashDone, setSplashDone] = useState(false);
   const { loading } = useAuth();
 
-  useEffect(() => {
-    document.documentElement.classList.add("dark");
-  }, []);
+  // Theme is managed by ThemeProvider — no manual classList manipulation here
 
   if (loading) {
     return (
@@ -203,12 +238,14 @@ function AppInner() {
   );
 }
 
-// ── Default Export ───────────────────────────────────────────────────────────
+// ── Default Export ────────────────────────────────────────────────────────────
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppInner />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppInner />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

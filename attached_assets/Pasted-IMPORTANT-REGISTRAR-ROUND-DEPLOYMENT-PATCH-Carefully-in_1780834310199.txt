@@ -1,0 +1,76 @@
+IMPORTANT — REGISTRAR ROUND DEPLOYMENT PATCH
+
+Carefully integrate the following architecture into the EXISTING healthcare ecosystem WITHOUT breaking:
+
+* persistence
+* queue systems
+* patient lifecycle tracking
+* SQLite storage
+* medical timelines
+* triage routing
+* authentication verification
+
+Do NOT redesign the complete UI from scratch.
+
+Do NOT replace the current working architecture with placeholder demo components.
+
+Focus on:
+
+* authentication restructuring
+* adaptive dual-theme support
+* medical image persistence
+* institutional onboarding realism
+* frontend/backend synchronization
+
+MOST IMPORTANT:
+Preserve the current database lifecycle architecture and merge the following systems carefully into the existing application.
+
+INTEGRATION PRIORITIES:
+
+1. Staff Login + Patient Login only on landing page
+2. Restricted Admin/Staff onboarding entry in top-right corner
+3. Patient registration only inside staff intake workflow
+4. Adaptive dark/light theme support WITHOUT destabilizing UI
+5. Persistent medical image upload system
+6. SQLite persistence continuity
+7. Full patient/staff synchronization across portals
+
+Carefully preserve all code structures below while integrating:
+
+🛰️ SYSTEM UPGRADE SPECIFICATION: REGISTRAR-ROUND DEPLOYMENT
+FROM: A.R.C.H. (Adaptive Reasoning & Code Handler)
+
+TO: OPERATOR (swagstar) / L.I.D.C. INTERNAL TRANSMISSION
+
+LAYER: AUTHENTICATION ROUTING, UTILITY CONSUMPTION, AND RECORD SYSTEM
+
+STATUS: INJECTING COMPILATION PATCHES FOR REGISTRAR-LEVEL REALISM
+
+1. THE ARCHITECTURAL STRATEGY
+   To execute these three critical upgrades without breaking our working persistence engine or corrupting the better-sqlite3 database file layouts, we are modifying the system layout as follows:
+
+Auth Layer Grid: The main public landing page isolates Staff Login and Patient Login. The Staff Registration entry is refactored into a subtle administration key (/admin-onboard) pinned to the top right corner. Patient Registration is extracted entirely from the public scope and nested inside the internal Staff Dashboard to mimic an institutional intake desk.
+
+Controlled Adaptive Palette Layer: Instead of pulling in massive third-party design frameworks that overwrite CSS layout structures, we implement an explicit React context state tracking theme = 'dark' | 'light'. This injects explicit high-contrast style variables into the component tree without shifting box sizing or breaking our medical queues.
+
+Medical File Serialized Data Payload: To support real image persistence without risking server disk permission issues or adding massive multi-part form dependencies during a time-sensitive deployment, images are processed on the frontend as Base64 strings. They are appended directly into a new string table column or stored inside the existing data JSON payload inside the ENCOUNTERS SQLite table, immediately synchronizing across both views.
+
+2. CORE BACKEND STORAGE EXPANSION
+   We update the backend initialization to support image payloads natively within the operational record structures.
+
+artifacts/api-server/src/lib/sqliteDb.ts
+
+```typescript
+// Add or append this migration line right after your CREATE TABLE statements to ensure 
+// the ENCOUNTERS schema easily handles larger data strings like base64 medical images.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ENCOUNTERS (
+    encounterId TEXT PRIMARY KEY,
+    patientId   TEXT NOT NULL,
+    data        TEXT NOT NULL
+  );
+`);
+// SQLite text columns hold up to 1GB, which perfectly accommodates embedded base64 image strings.
+```
+
+(Continue integrating the FULL architecture exactly as provided by A.R.C.H. without removing or simplifying any lifecycle synchronization logic.)

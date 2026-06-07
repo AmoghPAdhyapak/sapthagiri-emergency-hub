@@ -59,6 +59,7 @@ export interface EncounterRecord {
   isArchived?: boolean;
   terminationTimestamp?: string;
   deceasedAt?: string;
+  medicalImageBase64?: string;
 }
 
 // Dean Registry — licensed external doctor IDs allowed to submit continuity notes
@@ -127,7 +128,7 @@ const router = Router();
 
 // POST /api/triage/process
 router.post("/process", (req, res) => {
-  const { patientId, symptoms, visitReason, juniorDoctorSelection, doctorId, allergies } = req.body || {};
+  const { patientId, symptoms, visitReason, juniorDoctorSelection, doctorId, allergies, medicalImageBase64 } = req.body || {};
   if (!patientId || !symptoms) {
     res.status(400).json({ error: "patientId and symptoms required" });
     return;
@@ -197,6 +198,9 @@ router.post("/process", (req, res) => {
     forensicLifecycleTimeline: forensicTimeline,
     aiOverrideTriggered: aiOverrideActive && !!matchedIntakePhrase,
     isArchived: false,
+    ...(medicalImageBase64 && typeof medicalImageBase64 === "string"
+      ? { medicalImageBase64: medicalImageBase64.slice(0, 8 * 1024 * 1024) }
+      : {}),
   };
 
   upsertEncounter(record);

@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Users, Search, X, ChevronRight, User, Phone, Mail, Calendar,
   Stethoscope, ClipboardList, Clock, FileText,
-  Loader2, Activity, Link2, Eye,
+  Loader2, Activity, Link2, Eye, ImagePlus, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,7 @@ interface EncounterRecord {
   patientName: string;
   symptoms: string;
   visitReason: string;
+  medicalImageBase64?: string;
   triageLevel: "RED" | "YELLOW" | "GREEN";
   assignedDoctor: string;
   doctorId: string;
@@ -83,6 +84,33 @@ export function PatientsFolderPanel() {
   const [triageLoading, setTriageLoading] = useState(false);
   const [triageMsg, setTriageMsg] = useState("");
   const [overrideSignal, setOverrideSignal] = useState<OverrideSignal | null>(null);
+
+  // Medical image upload state
+  const [medicalImageBase64, setMedicalImageBase64] = useState<string | null>(null);
+  const [imageFileName, setImageFileName] = useState<string>("");
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setTriageMsg("Image too large — maximum 5 MB.");
+      return;
+    }
+    setImageFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result;
+      if (typeof result === "string") setMedicalImageBase64(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearImage = () => {
+    setMedicalImageBase64(null);
+    setImageFileName("");
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
 
   useEffect(() => {
     fetch("/api/patients-folder")
@@ -128,6 +156,7 @@ export function PatientsFolderPanel() {
           visitReason,
           doctorId,
           juniorDoctorSelection: "GREEN",
+          ...(medicalImageBase64 ? { medicalImageBase64 } : {}),
         }),
       });
       const data = await r.json() as { encounter: EncounterRecord; aiOverrideActive?: boolean; bannerReason?: string };
@@ -137,6 +166,7 @@ export function PatientsFolderPanel() {
       setTriageMsg(`✓ Triage complete — ${data.encounter.triageLevel}${data.aiOverrideActive ? " [AI OVERRIDE]" : ""} | ${data.encounter.encounterId}`);
       setSymptoms("");
       setVisitReason("");
+      clearImage();
       await openPatient(selectedPatient.patientId);
     } catch {
       setTriageMsg("Failed to submit triage.");
@@ -218,6 +248,41 @@ export function PatientsFolderPanel() {
                   className="bg-background/50 mt-1 text-sm"
                 />
               </div>
+              {/* Medical Image Upload */}
+              <div>
+                <Label className="text-xs flex items-center gap-1.5">
+                  <ImagePlus className="w-3.5 h-3.5 text-primary" /> Medical Image (optional, max 5 MB)
+                </Label>
+                <div className="mt-1">
+                  {medicalImageBase64 ? (
+                    <div className="relative w-full rounded-md overflow-hidden border border-primary/30 bg-background/50">
+                      <img src={medicalImageBase64} alt="Medical scan" className="w-full max-h-40 object-contain" />
+                      <button
+                        type="button"
+                        onClick={clearImage}
+                        className="absolute top-1.5 right-1.5 bg-background/90 rounded-full p-0.5 text-destructive hover:text-red-400 transition-colors"
+                        title="Remove image"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                      <p className="text-[10px] text-muted-foreground px-2 py-1 truncate">{imageFileName}</p>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-2 cursor-pointer border border-dashed border-border hover:border-primary/40 rounded-md px-3 py-2 bg-background/50 transition-colors">
+                      <ImagePlus className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Attach scan / X-ray / report…</span>
+                      <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageSelect}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <Label className="text-xs">Assign Doctor</Label>
                 <Select value={doctorId} onValueChange={setDoctorId}>
@@ -282,6 +347,18 @@ export function PatientsFolderPanel() {
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(enc.timestamp).toLocaleString()}</span>
                     <span className="flex items-center gap-1"><Stethoscope className="w-3 h-3" />{enc.assignedDoctor}</span>
                   </div>
+                  {enc.medicalImageBase64 && (
+                    <div className="mt-2 pt-2 border-t border-border/40">
+                      <p className="text-[10px] font-bold uppercase text-primary/70 mb-1.5 flex items-center gap-1">
+                        <ImagePlus className="w-3 h-3" /> Attached Medical Image
+                      </p>
+                      <img
+                        src={enc.medicalImageBase64}
+                        alt="Medical scan"
+                        className="w-full max-h-48 object-contain rounded-md border border-border/40 bg-background/50"
+                      />
+                    </div>
+                  )}
                   {enc.crossHospitalContinuityLogs.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-border/40">
                       <p className="text-[10px] font-bold uppercase text-amber-400 mb-1.5 flex items-center gap-1">
