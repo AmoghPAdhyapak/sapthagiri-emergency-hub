@@ -6,3 +6,9 @@ id = "xWI438KDsaglxpCT4mfyT"
 uri = "file://FULL_CODE.txt"
 type = "text"
 title = "Sapthagiri NPS — Full Source Code"
+
+[[outputs]]
+id = "DL0LHvgFI-13Dake2hd4z"
+uri = "file://DeanPortalPage.txt"
+type = "text"
+title = "DeanPortalPage.tsx — Full Dean Access Portal Code"
