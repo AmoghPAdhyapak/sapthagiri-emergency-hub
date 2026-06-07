@@ -1,0 +1,105 @@
+IMPORTANT — THE CURRENT IMPLEMENTATION IS INCORRECT
+
+The current system only performs responsive scaling.
+
+That is NOT the requested feature.
+
+Right now:
+the same desktop interface is merely shrinking on smaller screens.
+
+This is NOT:
+true Desktop/Mobile adaptive switching.
+
+===========================================================
+WHAT IS REQUIRED
+================
+
+I want:
+TWO DIFFERENT UI BEHAVIORS
+inside the SAME application.
+
+===========================================================
+DESKTOP MODE
+============
+
+Desktop mode should preserve:
+
+* full institutional dashboard
+* permanent sidebar
+* multi-column layouts
+* control-room appearance
+* wide operational tables
+* workstation behavior
+
+===========================================================
+MOBILE MODE
+===========
+
+Mobile mode should transform the interface into:
+
+* app-style layout
+* drawer/sidebar menu
+* stacked workflow cards
+* touch-friendly controls
+* simplified panel rendering
+* compact forms
+* bottom/mobile navigation
+* single-column operational flow
+
+The MOBILE interface structure itself must change.
+
+NOT just resize.
+
+===========================================================
+CRITICAL ISSUE
+==============
+
+The current implementation only:
+
+* changes viewport behavior
+* rescales layout
+* adjusts responsiveness
+
+BUT:
+the desktop operational structure still remains identical.
+
+That means:
+the switch is visually changing scale,
+NOT changing application behavior.
+
+===========================================================
+REQUIRED IMPLEMENTATION
+=======================
+
+The Desktop/Mobile switch must dynamically control:
+
+* layout rendering
+* navigation behavior
+* sidebar behavior
+* panel structure
+* dashboard arrangement
+* workflow presentation
+
+This should behave like:
+
+* professional SaaS dashboard systems
+* admin panels
+* enterprise healthcare applications
+
+===========================================================
+IMPORTANT
+=========
+
+DO NOT:
+
+* break current systems
+* rewrite backend
+* alter auth
+* modify persistence
+* change Dean hierarchy
+* destroy desktop UI
+
+ONLY:
+implement REAL adaptive dual-layout architecture.
+
+The switch must visibly transform the application structure itself.

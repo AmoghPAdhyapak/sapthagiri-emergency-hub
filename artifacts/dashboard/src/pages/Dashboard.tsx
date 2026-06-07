@@ -64,6 +64,21 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import logoUrl from "@/assets/logo.png";
+import { useViewMode, switchViewMode } from "@/hooks/useViewMode";
+
+const DASH_VIEW_LABELS: Record<string, string> = {
+  dashboard:   "Emergency Hub",
+  observation: "Observation Queue",
+  general:     "General Monitoring",
+  patientreg:  "Patient Registration",
+  folder:      "Patients Folder",
+  staffdir:    "Staff Directory",
+  timeline:    "Medical Timeline",
+  notes:       "Medical Notes",
+  ai:          "AI Assistant",
+  account:     "Settings",
+  deceased:    "Deceased Registry",
+};
 
 type DashView = "dashboard" | "observation" | "general" | "patientreg" | "folder" | "staffdir" | "timeline" | "ai" | "account" | "notes" | "deceased";
 
@@ -1320,6 +1335,8 @@ export default function Dashboard() {
   const [activeView, setActiveView] = useState<DashView>("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const viewMode = useViewMode();
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("sapthagiri_user");
@@ -1353,6 +1370,167 @@ export default function Dashboard() {
     localStorage.removeItem("sapthagiri_login_ts");
     setLocation("/");
   };
+
+  // ─── MOBILE APP LAYOUT ────────────────────────────────────────────────────
+  if (viewMode === "mobile") {
+    const activeLabel = DASH_VIEW_LABELS[activeView] ?? activeView;
+    return (
+      <div className="h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">
+        {/* Mobile Header */}
+        <header className="bg-card border-b border-border px-4 py-2.5 flex items-center justify-between shrink-0 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <img src={logoUrl} alt="Sapthagiri NPS" className="h-7 w-7 object-contain shrink-0" />
+            <div>
+              <p className="text-[13px] font-black text-primary leading-tight tracking-wide">Sapthagiri NPS</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-widest">Clinical Network</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => switchViewMode("desktop")}
+              className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60 hover:text-primary border border-border/40 hover:border-primary/40 px-2 py-1 rounded-md transition-colors bg-muted/20"
+              title="Switch to Desktop View"
+            >
+              <span>🖥</span>
+              <span className="hidden xs:inline">Desktop</span>
+            </button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsChatOpen(true)} title="AI Assistant">
+              <Bot className="w-4 h-4 text-primary" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={handleLogout} title="Logout">
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </header>
+
+        {/* Page title bar */}
+        <div className="px-4 py-1.5 border-b border-border/40 flex items-center bg-card/20 shrink-0">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{activeLabel}</span>
+          {user && (
+            <span className="ml-auto text-[10px] text-muted-foreground/70 truncate max-w-[150px]">{user.name}</span>
+          )}
+        </div>
+
+        {/* Content */}
+        <main className="flex-1 overflow-auto">
+          {activeView === "dashboard"   && <LiveReportsPanel />}
+          {activeView === "observation" && <ObservationQueuePanel />}
+          {activeView === "general"     && <GeneralMonitoringPanel />}
+          {activeView === "patientreg"  && <PatientRegistrationPanel />}
+          {activeView === "folder"      && <PatientsFolderPanel />}
+          {activeView === "staffdir"    && <StaffDirectoryPanel />}
+          {activeView === "timeline"    && <MedicalTimelinePanel />}
+          {activeView === "notes"       && <MedicalNotesPanel />}
+          {activeView === "ai"          && <AiFullPage />}
+          {activeView === "account"     && <AccountPanel user={user} />}
+          {activeView === "deceased"    && <DeceasedRegistryPanel />}
+        </main>
+
+        {/* Bottom Navigation */}
+        <nav className="shrink-0 bg-card border-t border-border grid grid-cols-5 px-1 pb-1 pt-1 gap-0.5">
+          <button
+            onClick={() => { setActiveView("dashboard"); setMobileMoreOpen(false); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-colors ${activeView === "dashboard" ? "bg-red-500/10" : "hover:bg-muted/30"}`}
+          >
+            <ShieldAlert className={`w-5 h-5 ${activeView === "dashboard" ? "text-red-400" : "text-muted-foreground/50"}`} />
+            <span className={`text-[9px] font-semibold ${activeView === "dashboard" ? "text-red-400" : "text-muted-foreground/50"}`}>Emergency</span>
+          </button>
+          <button
+            onClick={() => { setActiveView("observation"); setMobileMoreOpen(false); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-colors ${activeView === "observation" ? "bg-yellow-500/10" : "hover:bg-muted/30"}`}
+          >
+            <Eye className={`w-5 h-5 ${activeView === "observation" ? "text-yellow-400" : "text-muted-foreground/50"}`} />
+            <span className={`text-[9px] font-semibold ${activeView === "observation" ? "text-yellow-400" : "text-muted-foreground/50"}`}>Observe</span>
+          </button>
+          <button
+            onClick={() => { setActiveView("general"); setMobileMoreOpen(false); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-colors ${activeView === "general" ? "bg-emerald-500/10" : "hover:bg-muted/30"}`}
+          >
+            <Activity className={`w-5 h-5 ${activeView === "general" ? "text-emerald-400" : "text-muted-foreground/50"}`} />
+            <span className={`text-[9px] font-semibold ${activeView === "general" ? "text-emerald-400" : "text-muted-foreground/50"}`}>General</span>
+          </button>
+          <button
+            onClick={() => { setActiveView("folder"); setMobileMoreOpen(false); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-colors ${activeView === "folder" ? "bg-primary/10" : "hover:bg-muted/30"}`}
+          >
+            <FolderSearch className={`w-5 h-5 ${activeView === "folder" ? "text-primary" : "text-muted-foreground/50"}`} />
+            <span className={`text-[9px] font-semibold ${activeView === "folder" ? "text-primary" : "text-muted-foreground/50"}`}>Patients</span>
+          </button>
+          <button
+            onClick={() => setMobileMoreOpen(v => !v)}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-colors ${mobileMoreOpen ? "bg-muted/50" : "hover:bg-muted/30"}`}
+          >
+            <ChevronDown className={`w-5 h-5 text-muted-foreground/50 transition-transform duration-200 ${mobileMoreOpen ? "rotate-180" : ""}`} />
+            <span className="text-[9px] font-semibold text-muted-foreground/50">More</span>
+          </button>
+        </nav>
+
+        {/* More Sheet */}
+        {mobileMoreOpen && (
+          <>
+            <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setMobileMoreOpen(false)} />
+            <div className="fixed bottom-[57px] left-0 right-0 z-50 bg-card border-t border-border rounded-t-2xl shadow-2xl">
+              <div className="w-10 h-1 bg-muted rounded-full mx-auto mt-3 mb-3" />
+              <div className="grid grid-cols-4 gap-1 px-4 pb-6 pt-1">
+                <button
+                  onClick={() => { setActiveView("patientreg"); setMobileMoreOpen(false); }}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors ${activeView === "patientreg" ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"}`}
+                >
+                  <UserPlus className="w-5 h-5" />
+                  <span className="text-[10px] font-medium text-center leading-tight">Reg. Patient</span>
+                </button>
+                <button
+                  onClick={() => { setActiveView("staffdir"); setMobileMoreOpen(false); }}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors ${activeView === "staffdir" ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"}`}
+                >
+                  <IdCard className="w-5 h-5" />
+                  <span className="text-[10px] font-medium text-center leading-tight">Staff Dir.</span>
+                </button>
+                <button
+                  onClick={() => { setActiveView("timeline"); setMobileMoreOpen(false); }}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors ${activeView === "timeline" ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"}`}
+                >
+                  <ClipboardList className="w-5 h-5" />
+                  <span className="text-[10px] font-medium text-center leading-tight">Timeline</span>
+                </button>
+                <button
+                  onClick={() => { setActiveView("notes"); setMobileMoreOpen(false); }}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors ${activeView === "notes" ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"}`}
+                >
+                  <FileText className="w-5 h-5" />
+                  <span className="text-[10px] font-medium text-center leading-tight">Med. Notes</span>
+                </button>
+                <button
+                  onClick={() => { setActiveView("deceased"); setMobileMoreOpen(false); }}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors ${activeView === "deceased" ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"}`}
+                >
+                  <Skull className="w-5 h-5" />
+                  <span className="text-[10px] font-medium text-center leading-tight">Deceased</span>
+                </button>
+                <button
+                  onClick={() => { setActiveView("ai"); setMobileMoreOpen(false); }}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors ${activeView === "ai" ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"}`}
+                >
+                  <Bot className="w-5 h-5" />
+                  <span className="text-[10px] font-medium text-center leading-tight">AI Chat</span>
+                </button>
+                <button
+                  onClick={() => { setActiveView("account"); setMobileMoreOpen(false); }}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors ${activeView === "account" ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"}`}
+                >
+                  <User className="w-5 h-5" />
+                  <span className="text-[10px] font-medium text-center leading-tight">Settings</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        <AiChatPanel isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </div>
+    );
+  }
+  // ─── END MOBILE LAYOUT ────────────────────────────────────────────────────
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">

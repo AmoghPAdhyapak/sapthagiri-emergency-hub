@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useViewMode, switchViewMode } from "@/hooks/useViewMode";
 import { Link, useLocation } from "wouter";
 import {
   Bot, Activity, Brain, Users, ShieldCheck, Phone, Mail,
@@ -35,17 +36,7 @@ export default function LandingPage() {
   const [patError, setPatError] = useState("");
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"responsive" | "desktop">(() =>
-    (localStorage.getItem("view_mode") as "responsive" | "desktop") ?? "responsive"
-  );
-
-  const toggleViewMode = () => {
-    const next: "responsive" | "desktop" = viewMode === "desktop" ? "responsive" : "desktop";
-    setViewMode(next);
-    localStorage.setItem("view_mode", next);
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-    if (meta) meta.content = next === "desktop" ? "width=1280" : "width=device-width, initial-scale=1.0";
-  };
+  const viewMode = useViewMode();
 
   const scrollToLogin = () =>
     document.getElementById("login-section")?.scrollIntoView({ behavior: "smooth" });
@@ -169,7 +160,7 @@ export default function LandingPage() {
 
           {/* Desktop/Mobile View Toggle */}
           <button
-            onClick={toggleViewMode}
+            onClick={() => switchViewMode(viewMode === "desktop" ? "mobile" : "desktop")}
             className="hidden sm:flex items-center gap-1.5 text-xs font-mono text-muted-foreground/60 hover:text-primary border border-border/40 hover:border-primary/40 px-2.5 py-1.5 rounded-md transition-colors bg-muted/20 hover:bg-primary/5"
             title={viewMode === "desktop" ? "Switch to Mobile View" : "Switch to Desktop View"}
           >

@@ -11,6 +11,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import logoUrl from "@/assets/logo.png";
+import { useViewMode, switchViewMode } from "@/hooks/useViewMode";
+
+const PATIENT_VIEW_LABELS: Record<string, string> = {
+  profile:     "My Profile",
+  history:     "Medical History",
+  visit:       "Current Visit",
+  status:      "Emergency Status",
+  continuity:  "External Treatment",
+  ai:          "AI Assistant",
+};
 
 type PatientView = "profile" | "history" | "visit" | "status" | "continuity" | "ai";
 
@@ -856,6 +866,8 @@ export default function PatientPortal() {
   const [encounters, setEncounters] = useState<EncounterRecord[]>([]);
   const [loadingEnc, setLoadingEnc] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const viewMode = useViewMode();
+  const [mobilePatMoreOpen, setMobilePatMoreOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [ambulanceState, setAmbulanceState] = useState<"idle" | "dispatching" | "dispatched">("idle");
   const [ambulanceMsg, setAmbulanceMsg] = useState("");
@@ -922,61 +934,93 @@ export default function PatientPortal() {
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">
-      <header className="border-b border-border bg-card px-4 py-3 flex items-center justify-between shadow-sm shrink-0">
-        <div className="flex items-center gap-3">
-          <button
-            className="md:hidden p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
-            onClick={() => setMobileMenuOpen(true)}
-            title="Open navigation"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <div className="bg-blue-500/20 p-2 rounded-md">
-            <Heart className="w-5 h-5 text-blue-400" />
+      {/* ── Desktop Header ── */}
+      {viewMode !== "mobile" && (
+        <header className="border-b border-border bg-card px-4 py-3 flex items-center justify-between shadow-sm shrink-0">
+          <div className="flex items-center gap-3">
+            <button
+              className="md:hidden p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+              onClick={() => setMobileMenuOpen(true)}
+              title="Open navigation"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="bg-blue-500/20 p-2 rounded-md">
+              <Heart className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black uppercase tracking-widest text-blue-400 leading-tight">
+                Patient Portal
+              </h1>
+              <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                Sapthagiri NPS University — Institute of Medical Sciences
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-black uppercase tracking-widest text-blue-400 leading-tight">
-              Patient Portal
-            </h1>
-            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-              Sapthagiri NPS University — Institute of Medical Sciences
-            </p>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-muted-foreground hidden md:inline-block">
+              Welcome, <span className="text-foreground font-semibold">{patient.name}</span>
+            </span>
+            {patient.patientId && (
+              <Badge variant="outline" className="font-mono text-blue-300 border-blue-500/30 hidden md:inline-flex">
+                {patient.patientId}
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={handleLogout}
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-muted-foreground hidden md:inline-block">
-            Welcome, <span className="text-foreground font-semibold">{patient.name}</span>
+        </header>
+      )}
+
+      {/* ── Mobile Header ── */}
+      {viewMode === "mobile" && (
+        <header className="bg-card border-b border-border px-4 py-2.5 flex items-center justify-between shrink-0 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="bg-blue-500/20 p-1.5 rounded-lg">
+              <Heart className="w-4 h-4 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-[13px] font-black text-blue-400 leading-tight tracking-wide">Patient Portal</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-widest">Sapthagiri NPS</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => switchViewMode("desktop")}
+              className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60 hover:text-blue-400 border border-border/40 hover:border-blue-400/40 px-2 py-1 rounded-md transition-colors bg-muted/20"
+              title="Switch to Desktop View"
+            >
+              <span>🖥</span>
+              <span>Desktop</span>
+            </button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={handleLogout}>
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </header>
+      )}
+
+      {/* ── Mobile Page Title Bar ── */}
+      {viewMode === "mobile" && (
+        <div className="px-4 py-1.5 border-b border-border/40 flex items-center bg-blue-500/5 shrink-0">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-blue-400/70">
+            {PATIENT_VIEW_LABELS[activeView] ?? activeView}
           </span>
           {patient.patientId && (
-            <Badge variant="outline" className="font-mono text-blue-300 border-blue-500/30 hidden md:inline-flex">
-              {patient.patientId}
-            </Badge>
+            <span className="ml-auto font-mono text-[10px] text-blue-300/50">{patient.patientId}</span>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground"
-            onClick={handleLogout}
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
         </div>
-      </header>
+      )}
 
-      <div className="flex flex-1 overflow-hidden">
-        {mobileMenuOpen && (
-          <div
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-        )}
-        <PatientSidebar
-          activeView={activeView}
-          onNavigate={(v) => { setActiveView(v); setMobileMenuOpen(false); }}
-          patient={patient}
-          mobileOpen={mobileMenuOpen}
-        />
+      {viewMode === "mobile" ? (
+        /* ── Mobile Content ── */
         <main className="flex-1 overflow-auto">
           {activeView === "profile"     && <ProfileView patient={patient} />}
           {activeView === "history"     && <HistoryView encounters={encounters} loading={loadingEnc} />}
@@ -1002,12 +1046,120 @@ export default function PatientPortal() {
             </div>
           )}
         </main>
-      </div>
+      ) : (
+        /* ── Desktop Content (sidebar + main) ── */
+        <div className="flex flex-1 overflow-hidden">
+          {mobileMenuOpen && (
+            <div
+              className="fixed inset-0 bg-black/50 z-40 md:hidden"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+          )}
+          <PatientSidebar
+            activeView={activeView}
+            onNavigate={(v) => { setActiveView(v); setMobileMenuOpen(false); }}
+            patient={patient}
+            mobileOpen={mobileMenuOpen}
+          />
+          <main className="flex-1 overflow-auto">
+            {activeView === "profile"     && <ProfileView patient={patient} />}
+            {activeView === "history"     && <HistoryView encounters={encounters} loading={loadingEnc} />}
+            {activeView === "visit"       && <CurrentVisitView encounters={encounters} loading={loadingEnc} />}
+            {activeView === "status"      && <EmergencyStatusView encounters={encounters} />}
+            {activeView === "continuity"  && (
+              <ContinuityView
+                encounters={encounters}
+                loading={loadingEnc}
+                onNoteAdded={() => patient.patientId && fetchEncounters(patient.patientId)}
+              />
+            )}
+            {activeView === "ai" && (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Bot className="w-12 h-12 text-primary mx-auto mb-3 animate-pulse" />
+                  <p className="text-foreground font-semibold">AI Medical Assistant</p>
+                  <p className="text-sm text-muted-foreground mt-1 mb-4">Your personal AI health guide is ready.</p>
+                  <Button onClick={() => setAiOpen(true)} className="glow-border">
+                    <Bot className="w-4 h-4 mr-2" /> Open AI Chat
+                  </Button>
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
+      )}
+
+      {/* ── Mobile Bottom Navigation ── */}
+      {viewMode === "mobile" && (
+        <nav className="shrink-0 bg-card border-t border-border grid grid-cols-5 px-1 pb-1 pt-1 gap-0.5">
+          <button
+            onClick={() => { setActiveView("profile"); setMobilePatMoreOpen(false); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-colors ${activeView === "profile" ? "bg-blue-500/10" : "hover:bg-muted/30"}`}
+          >
+            <User className={`w-5 h-5 ${activeView === "profile" ? "text-blue-400" : "text-muted-foreground/50"}`} />
+            <span className={`text-[9px] font-semibold ${activeView === "profile" ? "text-blue-400" : "text-muted-foreground/50"}`}>Profile</span>
+          </button>
+          <button
+            onClick={() => { setActiveView("history"); setMobilePatMoreOpen(false); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-colors ${activeView === "history" ? "bg-blue-500/10" : "hover:bg-muted/30"}`}
+          >
+            <FileText className={`w-5 h-5 ${activeView === "history" ? "text-blue-400" : "text-muted-foreground/50"}`} />
+            <span className={`text-[9px] font-semibold ${activeView === "history" ? "text-blue-400" : "text-muted-foreground/50"}`}>History</span>
+          </button>
+          <button
+            onClick={() => { setActiveView("visit"); setMobilePatMoreOpen(false); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-colors ${activeView === "visit" ? "bg-blue-500/10" : "hover:bg-muted/30"}`}
+          >
+            <Heart className={`w-5 h-5 ${activeView === "visit" ? "text-blue-400" : "text-muted-foreground/50"}`} />
+            <span className={`text-[9px] font-semibold ${activeView === "visit" ? "text-blue-400" : "text-muted-foreground/50"}`}>Visit</span>
+          </button>
+          <button
+            onClick={() => { setActiveView("status"); setMobilePatMoreOpen(false); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-colors ${activeView === "status" ? "bg-blue-500/10" : "hover:bg-muted/30"}`}
+          >
+            <Activity className={`w-5 h-5 ${activeView === "status" ? "text-blue-400" : "text-muted-foreground/50"}`} />
+            <span className={`text-[9px] font-semibold ${activeView === "status" ? "text-blue-400" : "text-muted-foreground/50"}`}>Status</span>
+          </button>
+          <button
+            onClick={() => setMobilePatMoreOpen(v => !v)}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-colors ${mobilePatMoreOpen ? "bg-muted/50" : "hover:bg-muted/30"}`}
+          >
+            <ChevronDown className={`w-5 h-5 text-muted-foreground/50 transition-transform duration-200 ${mobilePatMoreOpen ? "rotate-180" : ""}`} />
+            <span className="text-[9px] font-semibold text-muted-foreground/50">More</span>
+          </button>
+        </nav>
+      )}
+
+      {/* ── Mobile More Sheet ── */}
+      {viewMode === "mobile" && mobilePatMoreOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setMobilePatMoreOpen(false)} />
+          <div className="fixed bottom-[57px] left-0 right-0 z-50 bg-card border-t border-border rounded-t-2xl shadow-2xl">
+            <div className="w-10 h-1 bg-muted rounded-full mx-auto mt-3 mb-3" />
+            <div className="grid grid-cols-3 gap-1 px-4 pb-6 pt-1">
+              <button
+                onClick={() => { setActiveView("continuity"); setMobilePatMoreOpen(false); }}
+                className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors ${activeView === "continuity" ? "bg-amber-500/15 text-amber-400" : "hover:bg-muted/50 text-muted-foreground"}`}
+              >
+                <Link2 className="w-5 h-5" />
+                <span className="text-[10px] font-medium text-center leading-tight">External Tx.</span>
+              </button>
+              <button
+                onClick={() => { setActiveView("ai"); setMobilePatMoreOpen(false); setAiOpen(true); }}
+                className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors ${activeView === "ai" ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"}`}
+              >
+                <Bot className="w-5 h-5" />
+                <span className="text-[10px] font-medium text-center leading-tight">AI Chat</span>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       <AiChatPanel isOpen={aiOpen} onClose={() => { setAiOpen(false); if (activeView === "ai") setActiveView("profile"); }} />
 
       {/* Emergency Ambulance — Patient Portal only */}
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className={`fixed ${viewMode === "mobile" ? "bottom-[72px]" : "bottom-6"} right-6 z-50`}>
         {ambulanceState === "idle" && (
           <button
             onClick={handleAmbulanceRequest}
