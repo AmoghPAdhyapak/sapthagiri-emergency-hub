@@ -1,0 +1,139 @@
+IMPORTANT — RESTORE EXISTING FAST2SMS OTP INFRASTRUCTURE
+
+Carefully inspect the EXISTING project architecture for the previously integrated Fast2SMS system.
+
+Do NOT build a completely new OTP backend if Fast2SMS integration already exists somewhere in the project.
+
+Search the project carefully for:
+
+* Fast2SMS integration
+* SMS utilities
+* OTP services
+* old onboarding verification flow
+* API handlers
+* environment variables
+* axios/fetch SMS calls
+* backend verification middleware
+
+Look for possible existing structures such as:
+
+* FAST2SMS_API_KEY
+* sendOtp()
+* otpService.ts
+* smsService.ts
+* verificationService.ts
+* Fast2SMS endpoints
+* patient onboarding OTP routes
+
+===========================================================
+IMPORTANT
+=========
+
+If Fast2SMS infrastructure already exists:
+
+* RESTORE it
+* RECONNECT it
+* REUSE it
+
+Do NOT replace it with:
+
+* Firebase
+* Twilio
+* new telecom architecture
+* temporary console OTP logic
+
+===========================================================
+REQUIRED FINAL FLOW
+===================
+
+Staff Dashboard
+→ Patient Registration
+→ Generate OTP
+→ Fast2SMS sends OTP to patient phone number
+→ Verify OTP
+→ Create Patient Account
+
+===========================================================
+OTP REQUIREMENTS
+================
+
+1. Staff enters:
+
+* patient name
+* phone number
+* password
+* allergy info
+* age
+
+2. Generate OTP button:
+
+* sends REAL OTP through existing Fast2SMS integration
+
+3. Verify OTP:
+
+* validates entered OTP
+
+4. ONLY after successful verification:
+
+* patient account created
+* SQLite persistence committed
+* patient login enabled
+* lifecycle tracking initialized
+
+===========================================================
+ACCOUNT CREATION LOCK
+=====================
+
+Patient creation MUST NOT proceed unless:
+
+```tsx id="7h9x2n"
+otpVerified === true
+```
+
+===========================================================
+IMPORTANT PRESERVATION DIRECTIVE
+================================
+
+Do NOT break:
+
+* SQLite persistence
+* patient/staff synchronization
+* onboarding isolation
+* continuity timelines
+* dark-mode registrar build
+* image persistence
+* authentication routing
+* existing healthcare UI
+
+===========================================================
+UI DIRECTIVE
+============
+
+Keep:
+
+* current healthcare styling
+* institutional intake layout
+* OTP verification section already added
+
+ONLY reconnect REAL SMS delivery using the previously existing Fast2SMS infrastructure.
+
+===========================================================
+FINAL DIRECTIVE
+===============
+
+Priority:
+
+* restore previous Fast2SMS functionality
+* stable OTP delivery
+* registrar-safe onboarding flow
+* institutional patient verification
+* preserve existing architecture
+
+NOT:
+
+* rebuilding OTP systems from scratch
+* replacing telecom provider
+* redesigning the frontend
+* experimental backend rewrites
+
+Carefully restore and reconnect the previous Fast2SMS architecture into the current institutional patient intake workflow.

@@ -810,29 +810,81 @@ function PatientRegistrationPanel() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; patientId?: string; name?: string; error?: string } | null>(null);
 
-  // ── Institutional OTP Verification State Machine ─────────────────────────
-  const [generatedOtpCode, setGeneratedOtpCode] = useState("");
+  // ── Institutional OTP Verification State Machine (Fast2SMS) ──────────────
+  const [otpSent, setOtpSent] = useState(false);
+  const [demoOtp, setDemoOtp] = useState("");      // set when Fast2SMS is in demo mode
+  const [smsSent, setSmsSent] = useState(false);   // true = real SMS delivered
   const [enteredOtpCode, setEnteredOtpCode] = useState("");
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpErrorMessage, setOtpErrorMessage] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
 
-  const handleGenerateOtp = () => {
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtpCode(generatedOtp);
-    setOtpVerified(false);
-    setEnteredOtpCode("");
-    setOtpErrorMessage("");
-    // Mock OTP — displayed in browser console for prototype verification
-    console.log("Prototype OTP Verification Code:", generatedOtp);
+  const normalizePhone = (p: string) => {
+    const d = p.replace(/\D/g, "");
+    if (d.length === 12 && d.startsWith("91")) return d.slice(2);
+    if (d.length === 11 && d.startsWith("0")) return d.slice(1);
+    return d;
   };
 
-  const handleVerifyOtp = () => {
-    if (enteredOtpCode === generatedOtpCode) {
-      setOtpVerified(true);
-      setOtpErrorMessage("");
-    } else {
-      setOtpVerified(false);
-      setOtpErrorMessage("Incorrect OTP. Please check the console and try again.");
+  const handleGenerateOtp = async () => {
+    const phone = normalizePhone(form.phone);
+    if (phone.length < 7) {
+      setOtpErrorMessage("Enter a valid phone number first.");
+      return;
+    }
+    setOtpSending(true);
+    setOtpErrorMessage("");
+    setOtpVerified(false);
+    setEnteredOtpCode("");
+    setDemoOtp("");
+    setSmsSent(false);
+    try {
+      const res = await fetch("/api/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json() as { success?: boolean; sms?: boolean; demo_otp?: string; error?: string };
+      if (!res.ok || !data.success) {
+        setOtpErrorMessage(data.error ?? "Failed to send OTP.");
+        return;
+      }
+      setOtpSent(true);
+      if (data.sms) {
+        setSmsSent(true);
+      } else if (data.demo_otp) {
+        setDemoOtp(data.demo_otp);
+      }
+    } catch {
+      setOtpErrorMessage("Network error. Please try again.");
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const phone = normalizePhone(form.phone);
+    setOtpVerifying(true);
+    setOtpErrorMessage("");
+    try {
+      const res = await fetch("/api/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, otp: enteredOtpCode }),
+      });
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (!res.ok || !data.success) {
+        setOtpVerified(false);
+        setOtpErrorMessage(data.error ?? "Incorrect OTP.");
+      } else {
+        setOtpVerified(true);
+        setOtpErrorMessage("");
+      }
+    } catch {
+      setOtpErrorMessage("Network error. Please try again.");
+    } finally {
+      setOtpVerifying(false);
     }
   };
 
@@ -868,7 +920,9 @@ function PatientRegistrationPanel() {
       } else {
         setResult({ success: true, patientId: data.patientId, name: data.name });
         setForm({ name: "", phone: "", age: "", email: "", password: "", allergies: "" });
-        setGeneratedOtpCode("");
+        setOtpSent(false);
+        setDemoOtp("");
+        setSmsSent(false);
         setEnteredOtpCode("");
         setOtpVerified(false);
         setOtpErrorMessage("");
@@ -933,7 +987,7 @@ function PatientRegistrationPanel() {
               <p className="text-[10px] text-muted-foreground/60">Shared with triage staff to prevent adverse drug reactions. Leave blank if none.</p>
             </div>
 
-            {/* ── Institutional OTP Verification Pipeline ── */}
+            {/* ── Institutional OTP Verification Pipeline (Fast2SMS) ── */}
             <div className="otp-verification-architecture-subplate">
               <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
                 Institutional Verification Pipeline
@@ -943,14 +997,26 @@ function PatientRegistrationPanel() {
                 type="button"
                 className="otp-action-trigger-btn"
                 onClick={handleGenerateOtp}
+                disabled={otpSending || otpVerified}
               >
-                Generate OTP
+                {otpSending ? "Sending OTP…" : otpSent ? "Resend OTP" : "Send OTP via SMS"}
               </button>
 
-              {generatedOtpCode && (
-                <p className="text-[10px] text-muted-foreground/60 font-mono">
-                  OTP generated — check browser console (F12) for the code.
-                </p>
+              {/* Status after send */}
+              {otpSent && !otpVerified && (
+                smsSent ? (
+                  <p className="text-[10px] text-emerald-400 font-medium">
+                    ✓ OTP sent to +91{normalizePhone(form.phone)} via SMS. Enter it below.
+                  </p>
+                ) : demoOtp ? (
+                  <div className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-1.5">
+                    <span className="text-[10px] font-bold text-yellow-300 uppercase tracking-wide">Demo OTP:</span>
+                    <span className="font-mono font-black text-yellow-200 tracking-widest text-sm">{demoOtp}</span>
+                    <span className="text-[9px] text-yellow-400/70 ml-1">(SMS unavailable — use this code)</span>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground/60">OTP sent. Check the patient's phone.</p>
+                )
               )}
 
               <Input
@@ -960,16 +1026,16 @@ function PatientRegistrationPanel() {
                 value={enteredOtpCode}
                 onChange={(e) => setEnteredOtpCode(e.target.value.replace(/\D/g, ""))}
                 className="bg-background/50 font-mono tracking-widest text-center text-lg"
-                disabled={!generatedOtpCode}
+                disabled={!otpSent || otpVerified}
               />
 
               <button
                 type="button"
                 className="otp-validation-commit-btn"
                 onClick={handleVerifyOtp}
-                disabled={!generatedOtpCode || enteredOtpCode.length !== 6}
+                disabled={!otpSent || enteredOtpCode.length !== 6 || otpVerifying || otpVerified}
               >
-                Verify OTP
+                {otpVerifying ? "Verifying…" : "Verify OTP"}
               </button>
 
               {otpVerified && (
