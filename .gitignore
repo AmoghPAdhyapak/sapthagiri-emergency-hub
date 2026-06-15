@@ -47,3 +47,9 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# SQLite database (runtime file, never commit)
+*.db
+*.db-shm
+*.db-wal
+hospital_ecosystem.db

@@ -18,3 +18,9 @@ id = "Uzsk1EMZBBuYy3L3F35ih"
 uri = "file://DEPLOYMENT_GUIDE.md"
 type = "text"
 title = "Sapthagiri NPS — Complete Deployment Guide"
+
+[[outputs]]
+id = "6eh5YXkfBHCOh7W9BiGzq"
+uri = "file://sapthagiri-emergency-portal.zip"
+type = "unspecified"
+title = "Sapthagiri NPS — Production Deployment Package"
