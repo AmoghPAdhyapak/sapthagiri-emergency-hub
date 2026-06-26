@@ -1,4 +1,9 @@
+/// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
+
 export const config = { runtime: "edge" };
+
+declare const process: { env: Record<string, string | undefined> };
 
 export default async function handler(request: Request): Promise<Response> {
   const BACKEND_URL = (process.env.BACKEND_URL ?? "").replace(/\/+$/, "");
