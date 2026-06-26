@@ -1,0 +1,129 @@
+We already spent many hours fixing deployment issues on another project (Aethon). Do NOT repeat those mistakes.
+
+My goal is to deploy the Sapthagiri Medical Care Portal on Vercel.
+
+This is a production-grade healthcare platform. Your responsibility is to act as the deployment engineer, release engineer, DevOps engineer, and code verifier—not just the code generator.
+
+DO NOT
+
+- Generate an incomplete ZIP.
+- Omit any folders or files required for deployment.
+- Leave any monorepo/workspace-only dependencies unresolved.
+- Leave any tsconfig extending external tsconfig.base.json files.
+- Leave broken workspace/package references.
+- Assume a Vercel Root Directory without verifying it.
+- Omit required environment variables.
+- Leave Replit-only deployment logic.
+- Generate partial patches when a complete deployment package is required.
+- Require manual reconstruction of folders or merging files.
+- Require manual fixes after export.
+- Leave broken authentication.
+- Leave broken API integrations.
+- Leave broken database connections.
+- Leave broken file uploads.
+- Leave broken medical workflows.
+- Leave broken routing.
+- Leave placeholder implementations without explicitly identifying them.
+
+FIRST
+
+Inspect the ENTIRE Sapthagiri Medical Care Portal project.
+
+Determine:
+
+1. Overall architecture.
+2. Frontend framework.
+3. Backend framework.
+4. Database.
+5. Authentication provider.
+6. Storage system.
+7. AI integrations.
+8. External APIs.
+9. Whether the project is a single application or a monorepo.
+10. Every application/module included.
+11. Which modules share infrastructure.
+12. Whether everything can be deployed together as one Vercel project.
+
+VERIFY
+
+Provide:
+
+- Root Directory
+- Install Command
+- Build Command
+- Output Directory
+- Routing configuration
+- Public assets
+- Authentication configuration
+- Database dependencies
+- Storage dependencies
+- AI dependencies
+- Every environment variable
+- Every required configuration file
+- Every deployment dependency
+
+BEFORE EXPORTING
+
+Automatically remove or replace anything that will break on Vercel, including:
+
+- external tsconfig.base.json references
+- unresolved workspace references
+- broken build configuration
+- incorrect Root Directory assumptions
+- incomplete frontend exports
+- missing source files
+- missing public assets
+- Replit-only deployment logic
+- broken path aliases
+- unresolved imports
+- incompatible deployment configuration
+
+Do not change application functionality.
+
+VALIDATE
+
+Before exporting, verify:
+
+- Vercel install succeeds.
+- Vercel build succeeds.
+- No missing files.
+- No missing folders.
+- No unresolved imports.
+- No unresolved tsconfig references.
+- No unresolved workspace references.
+- No missing assets.
+- No broken authentication.
+- No broken routing.
+- No broken APIs.
+- No broken database configuration.
+- All dashboards load.
+- All portals load.
+- Every configured module functions correctly.
+
+REQUIRED OUTPUT
+
+Do NOT give me patches.
+
+Do NOT give me individual files.
+
+Generate ONE complete standalone Vercel-ready deployment package containing the FULL Sapthagiri Medical Care Portal exactly as it should exist in GitHub.
+
+Include:
+
+- complete source code
+- every required configuration file
+- every required asset
+- every environment variable name
+- deployment instructions
+- Root Directory
+- Install Command
+- Build Command
+- Output Directory
+
+Finally, provide a deployment verification report confirming:
+
+- the package has been validated for Vercel,
+- the build is expected to succeed,
+- no manual reconstruction is required,
+- no deployment blockers remain,
+- and the deployment package is production-ready.
